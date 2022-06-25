@@ -7,6 +7,11 @@ float GetScale(float initial_measure, float target_measure){
   return target_measure/initial_measure;
 }
 
+namespace constants{
+  constexpr int kFrameRate = 60;  // Frames per second
+  constexpr int kFrameDuration = 1000/kFrameRate;
+}
+
 class Texture{
   private:
     sf::Texture player_;
@@ -40,16 +45,16 @@ class Movable{
     void Move(sf::Sprite &sprite, Direction direction){
       switch(direction){
         case Direction::kUp: 
-          sprite.move(0,-1);
+          sprite.move(0,-10);
           break;
         case Direction::kRight:
-          sprite.move(1,0);
+          sprite.move(10,0);
           break;
         case Direction::kDown:
-          sprite.move(0,1);
+          sprite.move(0,10);
           break;
         case Direction::kLeft:
-          sprite.move(-1,-0);
+          sprite.move(-10,-0);
           break;
         default:
           std::cout << "Wrong direction\n";
@@ -60,17 +65,20 @@ class Movable{
 class Player: protected Movable{
   private:
     sf::Sprite sprite_;
+    int player_height = 150;
   public:
     Player(sf::Texture *player_texture, unsigned int screen_width, unsigned int screen_height){
       this->sprite_.setTexture(*player_texture);
       this->sprite_.setOrigin(this->sprite_.getLocalBounds().width/2, this->sprite_.getLocalBounds().height/2);
-      float scale = GetScale(this->sprite_.getGlobalBounds().height, 150);
+      float scale = GetScale(this->sprite_.getGlobalBounds().height, player_height);
       this->sprite_.setScale(scale, scale); 
       this->sprite_.setPosition(screen_width*0.5, screen_height*0.7);
     }
 
-    void Draw(sf::RenderWindow &window){
+    void Update(sf::RenderWindow &window){
+      
       window.draw(this->sprite_);
+      this->MoveLeft();
     }
     void MoveLeft(){
       Movable::Move(this->sprite_, Direction::kLeft);
@@ -116,7 +124,7 @@ int main(){
   Alien alien(textures->GetAlien());
   //////
   sf::Clock clock;
-
+  std::cout << "in\n";
   while(window.isOpen()){
     sf::Event event;
     while(window.pollEvent(event)){
@@ -129,14 +137,16 @@ int main(){
         window.close();
       }
     }
-    sf::Time elapsed = clock.restart();
-    //std::cout << elapsed.asMilliseconds();
-    window.clear(sf::Color::White);
+    sf::Time elapsed = clock.getElapsedTime();
+    if(elapsed.asMilliseconds() >= constants::kFrameDuration){
+      clock.restart();
+      window.clear(sf::Color::White);
    
-    player.Draw(window); 
-    //alien.Draw(window);
+      player.Update(window); 
+      //alien.Draw(window);
 
-    window.display();
+      window.display();
+    }
   }
   
   return 0;
