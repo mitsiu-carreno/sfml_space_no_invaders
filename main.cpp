@@ -19,7 +19,7 @@ class Texture{
     sf::Texture alien_;
   public:
     Texture(){
-      // Codes: Portal, spiderman/ironman
+      // Codes: Portal, spiderman/ironman, game mechanic elites desapear on stall
       if(!this->player_.loadFromFile("resources/plane.png")){
         throw "Unable to load ship texture";
       }
@@ -108,14 +108,9 @@ class Alien: protected Movable{
     }
 
     void Move(Movable::Direction direction, int elapsed){
-      std::cout << "Move\n";
-      std::cout << this->sprite_.getPosition().x << "," << this->sprite_.getPosition().y << "\n";
       Movable::Move(this->sprite_, direction, elapsed * this->speed_);
-      std::cout << this->sprite_.getPosition().x << "," << this->sprite_.getPosition().y << "\n\n";
     }
-    void Update(sf::RenderWindow &window){
-      std::cout << "Update\n";
-      std::cout << this->sprite_.getPosition().x << "," << this->sprite_.getPosition().y << "\n";
+    void Draw(sf::RenderWindow &window){
       window.draw(this->sprite_);
     }
 };
@@ -138,6 +133,7 @@ class AlienCovenant: protected Movable{
     }
   public:
     AlienCovenant(){
+      // todo Create aliens here?!
       this->movement_loop[0] = Movable::Direction::kRight;
       this->movement_loop[1] = Movable::Direction::kDown;
       this->movement_loop[2] = Movable::Direction::kLeft;
@@ -150,19 +146,28 @@ class AlienCovenant: protected Movable{
     void Enlist(Alien *new_alien){
       this->covenant_.push_back(new_alien);
     }
-    void Update(int elapsed){
+
+    void Update(sf::RenderWindow &window, int elapsed){
       elapsed_stall += elapsed;
       if(elapsed_stall > stall_duration){
         elapsed_movement += elapsed;
-      
+        /*
         for(Alien *soldier : this->covenant_){
           soldier->Move(AlienCovenant::GetCurrentDirection(), elapsed);
         }
+        */
         if(elapsed_movement > movement_duration){
           elapsed_stall = 0;
           elapsed_movement = 0;
           this->UpdateDirection();
         }
+      }
+      for(Alien *soldier : this->covenant_){
+        // re do movement check to avoid double covenant range-base loop
+        if(elapsed_movement > 0 && elapsed_movement <= movement_duration){
+          soldier->Move(AlienCovenant::GetCurrentDirection(), elapsed);
+        }
+        soldier->Draw(window);
       }
     }
 };
@@ -194,8 +199,24 @@ int main(){
   AlienCovenant covenant;
   Alien alien1(textures->GetAlien(),1);
   Alien alien2(textures->GetAlien(),2);
+  Alien alien3(textures->GetAlien(),3);
+  Alien alien4(textures->GetAlien(),4);
+  Alien alien5(textures->GetAlien(),5);
+  Alien alien6(textures->GetAlien(),6);
+  Alien alien7(textures->GetAlien(),7);
+  Alien alien8(textures->GetAlien(),8);
+  Alien alien9(textures->GetAlien(),9);
+  Alien alien10(textures->GetAlien(),10);
   covenant.Enlist(&alien1);
   covenant.Enlist(&alien2);
+  covenant.Enlist(&alien3);
+  covenant.Enlist(&alien4);
+  covenant.Enlist(&alien5);
+  covenant.Enlist(&alien6);
+  covenant.Enlist(&alien7);
+  covenant.Enlist(&alien8);
+  covenant.Enlist(&alien9);
+  covenant.Enlist(&alien10);
   //////
   sf::Clock clock;
   while(window.isOpen()){
@@ -213,9 +234,7 @@ int main(){
       window.clear(sf::Color(142,142,142));
    
       player.Update(window, elapsed.asMilliseconds()); 
-      covenant.Update(elapsed.asMilliseconds());
-      alien1.Update(window);
-      alien2.Update(window);
+      covenant.Update(window, elapsed.asMilliseconds());
 
       window.display();
     }
