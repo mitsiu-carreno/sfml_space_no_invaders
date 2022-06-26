@@ -10,6 +10,7 @@ float GetScale(float initial_measure, float target_measure){
 namespace constants{
   constexpr int kFrameRate = 60;  // Frames per second
   constexpr int kFrameDuration = 1000/kFrameRate;
+  constexpr int kScreenMargins = 10;
 }
 
 class Texture{
@@ -42,19 +43,19 @@ class Movable{
       kDown,
       kLeft,
     };
-    void Move(sf::Sprite &sprite, Direction direction){
+    void Move(sf::Sprite &sprite, Direction direction, float distance){
       switch(direction){
         case Direction::kUp: 
-          sprite.move(0,-10);
+          sprite.move(0,-distance);
           break;
         case Direction::kRight:
-          sprite.move(10,0);
+          sprite.move(distance,0);
           break;
         case Direction::kDown:
-          sprite.move(0,10);
+          sprite.move(0,distance);
           break;
         case Direction::kLeft:
-          sprite.move(-10,-0);
+          sprite.move(-distance,0);
           break;
         default:
           std::cout << "Wrong direction\n";
@@ -65,7 +66,8 @@ class Movable{
 class Player: protected Movable{
   private:
     sf::Sprite sprite_;
-    const int player_height_ = 150;
+    const int player_height_ = 150; // Pixels
+    const float speed = 0.625;      // pixels / millisecond
   public:
     Player(sf::Texture *player_texture, unsigned int screen_width, unsigned int screen_height){
       this->sprite_.setTexture(*player_texture);
@@ -75,22 +77,55 @@ class Player: protected Movable{
       this->sprite_.setPosition(screen_width*0.5, screen_height*0.7);
     }
 
-    void Update(sf::RenderWindow &window){
+    void Update(sf::RenderWindow &window, int elapsed){
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::Left)){
-        Movable::Move(this->sprite_, Direction::kLeft);
+        if(this->sprite_.getGlobalBounds().left > constants::kScreenMargins){
+          Movable::Move(this->sprite_, Direction::kLeft, elapsed * this->speed);
+        }
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::Right)){
-        Movable::Move(this->sprite_, Direction::kRight);
+        if(this->sprite_.getGlobalBounds().left + this->sprite_.getGlobalBounds().width < window.getSize().x - constants::kScreenMargins){
+          Movable::Move(this->sprite_, Movable::Direction::kRight, elapsed * this->speed);
+        }
       }
       window.draw(this->sprite_);
     }
     
 };
 
-class Alien{
+// todo think better name
+class AlienGang: protected Movable{
+  private:
+    Movable::Direction movement_loop[4];
+    int current_direction; 
+  protected:
+    Movable::Direction GetCurrentDirection(){
+      return movement_loop[this->current_direction];
+    }
+    void UpdateDirection(){
+      this->current_direction = (this->current_direction+1) % 4;
+    }
+  public:
+    AlienGang(){
+      this->movement_loop[0] = Movable::Direction::kRight;
+      this->movement_loop[1] = Movable::Direction::kDown;
+      this->movement_loop[2] = Movable::Direction::kLeft;
+      this->movement_loop[3] = Movable::Direction::kDown;
+
+      this->current_direction = 0;
+    }
+    
+};
+
+class Alien: protected AlienGang{
   private: 
     sf::Sprite sprite_;
-    const int alien_height_ = 100;
+    const int alien_height_ = 100;        // Pixels
+    const float speed = 0.3125;           // Pixels / millisecond
+    const int stall_duration = 1200;  // Milliseconds
+    const int movement_duration = 200;        // Milliseconds
+    float elapsed_stall = 0;
+    float elapsed_movement = 0;
   public:
     Alien(sf::Texture *alien_texture){
       this->sprite_.setTexture(*alien_texture);
@@ -100,7 +135,18 @@ class Alien{
       this->sprite_.setPosition(this->sprite_.getGlobalBounds().width, this->sprite_.getGlobalBounds().height);
     }
 
-    void Draw(sf::RenderWindow &window){
+    void Update(sf::RenderWindow &window, int elapsed){
+      elapsed_stall += elapsed;
+      if(elapsed_stall > stall_duration){
+        //moving = true;
+        elapsed_movement += elapsed;
+        Movable::Move(this->sprite_, AlienGang::GetCurrentDirection(), elapsed * this->speed);
+        if(elapsed_movement > movement_duration){
+          elapsed_stall = 0;
+          elapsed_movement = 0;
+          AlienGang::UpdateDirection();
+        }
+      }
       window.draw(this->sprite_);
     }
 };
@@ -113,7 +159,7 @@ int main(){
   const unsigned int screen_width = (*modes)[0].width;
   const unsigned int screen_height = (*modes)[0].height;
   delete modes;
-  sf::RenderWindow window(sf::VideoMode(screen_width,screen_height), ".");
+  sf::RenderWindow window(sf::VideoMode(screen_width,screen_height), "Space Invaders!");
   //sf::Vector2i window_offset(0,0);
   //window.setPosition(window_offset);
  
@@ -145,8 +191,8 @@ int main(){
       clock.restart();
       window.clear(sf::Color::White);
    
-      player.Update(window); 
-      alien.Draw(window);
+      player.Update(window, elapsed.asMilliseconds()); 
+      alien.Update(window, elapsed.asMilliseconds());
 
       window.display();
     }
