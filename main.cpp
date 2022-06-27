@@ -2,6 +2,7 @@
 #include <SFML/Graphics.hpp>
 #include <iostream>
 #include <vector>
+// todo vector reserve everywhere
 
 float GetScale(float initial_measure, float target_measure){
   return target_measure/initial_measure;
@@ -73,10 +74,11 @@ class Movable{
 class Bullet: protected Movable{
   private:
     sf::Sprite sprite_;
-    const int bullet_height_ = 40;
-    const float speed_ = 0.6;   // pixels / milliseconds
+    //const int bullet_height_ = 40;
     bool friendy;
   public:
+    static const float speed_;   // pixels / milliseconds
+    static const int bullet_height_;
     Bullet(bool friendly, sf::Texture& texture, float pos_x, float pos_y){
       this->sprite_.setTexture(texture);
       this->sprite_.setOrigin(this->sprite_.getLocalBounds().width/2, this->sprite_.getLocalBounds().height/2);
@@ -88,8 +90,13 @@ class Bullet: protected Movable{
       Movable::Move(this->sprite_, Movable::Direction::kUp, elapsed * this->speed_);
       window.draw(this->sprite_);
     }
+    sf::Vector2f GetPosition(){
+      return this->sprite_.getPosition();
+    }
 
 };
+constexpr float Bullet::speed_ = 0.6;
+constexpr int Bullet::bullet_height_ = 40;
 
 class Player: protected Movable{
   private:
@@ -98,7 +105,7 @@ class Player: protected Movable{
     const float speed_ = 0.625;      // pixels / millisecond
     sf::Texture *bullet_texture_;
     std::vector<Bullet*> bullets_;    // todo deconstructor
-    const int fire_cooldown = 100;
+    const int fire_cooldown = 300;
     int remaining_fire_cooldown = fire_cooldown; 
   public:
     Player(sf::Texture *player_texture, unsigned int screen_width, unsigned int screen_height, sf::Texture *bullet_texture){
@@ -109,9 +116,13 @@ class Player: protected Movable{
       this->sprite_.setPosition(screen_width*0.5, screen_height*0.7);
 
       this->bullet_texture_ = bullet_texture;
+      // Calc the maximum amount of bullets based on screen size, bullet speed and fire cooldown
+      this->bullets_.reserve((screen_height/Bullet::speed_)/this->fire_cooldown);
     }
 
     void Update(sf::RenderWindow &window, int elapsed){
+      // Lock minimum value to 0
+      this->remaining_fire_cooldown = (this->remaining_fire_cooldown < 0)? 0 : this->remaining_fire_cooldown - elapsed; 
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::Left)){
         if(this->sprite_.getGlobalBounds().left > constants::kScreenMargins){
           Movable::Move(this->sprite_, Direction::kLeft, elapsed * this->speed_);
@@ -126,9 +137,6 @@ class Player: protected Movable{
         if(this->remaining_fire_cooldown == 0){
           this->Fire(); 
           this->remaining_fire_cooldown = this->fire_cooldown;
-        }else{
-          // Lock minimum value to 0
-          this->remaining_fire_cooldown = (this->remaining_fire_cooldown < 0)? 0 : this->remaining_fire_cooldown - elapsed; 
         }
       }
 
@@ -140,11 +148,28 @@ class Player: protected Movable{
 
     void Fire(){
       this->bullets_.push_back(
-          new Bullet(true, *(this->bullet_texture_), this->sprite_.getPosition().x, this->sprite_.getGlobalBounds().top)
+        new Bullet(
+          true, 
+          *(this->bullet_texture_), 
+          this->sprite_.getPosition().x, 
+          this->sprite_.getGlobalBounds().top
+        )
       );
-      //Bullet new_bullet = Bullet(true, *(this->bullet_texture_), this->sprite_.getPosition());  
     }
-    
+    void ClearBullets(){
+      unsigned i =0;
+      for(Bullet *bullet : this->bullets_){
+        if(bullet->GetPosition().y < 0 - Bullet::bullet_height_){
+          std::cout << "Delete at " << bullet->GetPosition().y << "\n"; 
+          delete bullet;
+          bullet = nullptr;
+          this->bullets_.erase(this->bullets_.begin()+i);
+
+      std::cout << "cap" << this->bullets_.capacity() << " size:" << this->bullets_.size() << "\n";
+        }
+        ++i;
+      }
+    }
 };
 
 class Alien: protected Movable{
@@ -282,6 +307,7 @@ int main(){
         window.close();
       }
     }
+
     sf::Time elapsed = clock.getElapsedTime();
     if(elapsed.asMilliseconds() >= constants::kFrameDuration){
       clock.restart();
@@ -291,6 +317,10 @@ int main(){
       covenant.Update(window, elapsed.asMilliseconds());
 
       window.display();
+    }else{
+      // todo check if performant and good practice
+      // Do performance tasks
+      player.ClearBullets();
     }
   }
   
