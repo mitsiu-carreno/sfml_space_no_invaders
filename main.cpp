@@ -17,6 +17,7 @@ class Texture{
   private:
     sf::Texture player_;
     sf::Texture alien_;
+    sf::Texture rocket_;
   public:
     Texture(){
       // Codes: Portal, spiderman/ironman, game mechanic elites desapear on stall
@@ -26,12 +27,18 @@ class Texture{
       if(!this->alien_.loadFromFile("resources/alien.png")){
         throw "Unable to load alien texture";
       }
+      if(!this->rocket_.loadFromFile("resources/rocket.png")){
+        throw "Unable to load rocket texture";
+      }
     }
     sf::Texture* GetPlayer(){
       return &this->player_;
     }
     sf::Texture* GetAlien(){
       return &this->alien_;
+    }
+    sf::Texture* GetRocket(){
+      return &this->rocket_;
     }
 };
 
@@ -63,18 +70,45 @@ class Movable{
     }
 };
 
+class Bullet: protected Movable{
+  private:
+    sf::Sprite sprite_;
+    const int bullet_height_ = 40;
+    const float speed_ = 0.6;   // pixels / milliseconds
+    bool friendy;
+  public:
+    Bullet(bool friendly, sf::Texture& texture, float pos_x, float pos_y){
+      this->sprite_.setTexture(texture);
+      this->sprite_.setOrigin(this->sprite_.getLocalBounds().width/2, this->sprite_.getLocalBounds().height/2);
+      float scale = GetScale(this->sprite_.getGlobalBounds().height, this->bullet_height_);
+      this->sprite_.setScale(scale, scale);
+      this->sprite_.setPosition(pos_x, pos_y);
+    }
+    void Update(sf::RenderWindow &window, int elapsed){
+      Movable::Move(this->sprite_, Movable::Direction::kUp, elapsed * this->speed_);
+      window.draw(this->sprite_);
+    }
+
+};
+
 class Player: protected Movable{
   private:
     sf::Sprite sprite_;
     const int player_height_ = 150; // Pixels
     const float speed_ = 0.625;      // pixels / millisecond
+    sf::Texture *bullet_texture_;
+    std::vector<Bullet*> bullets_;    // todo deconstructor
+    const int fire_cooldown = 100;
+    int remaining_fire_cooldown = fire_cooldown; 
   public:
-    Player(sf::Texture *player_texture, unsigned int screen_width, unsigned int screen_height){
+    Player(sf::Texture *player_texture, unsigned int screen_width, unsigned int screen_height, sf::Texture *bullet_texture){
       this->sprite_.setTexture(*player_texture);
       this->sprite_.setOrigin(this->sprite_.getLocalBounds().width/2, this->sprite_.getLocalBounds().height/2);
       float scale = GetScale(this->sprite_.getGlobalBounds().height, this->player_height_);
       this->sprite_.setScale(scale, scale); 
       this->sprite_.setPosition(screen_width*0.5, screen_height*0.7);
+
+      this->bullet_texture_ = bullet_texture;
     }
 
     void Update(sf::RenderWindow &window, int elapsed){
@@ -88,7 +122,27 @@ class Player: protected Movable{
           Movable::Move(this->sprite_, Movable::Direction::kRight, elapsed * this->speed_);
         }
       }
+      if(sf::Keyboard::isKeyPressed(sf::Keyboard::Space)){
+        if(this->remaining_fire_cooldown == 0){
+          this->Fire(); 
+          this->remaining_fire_cooldown = this->fire_cooldown;
+        }else{
+          // Lock minimum value to 0
+          this->remaining_fire_cooldown = (this->remaining_fire_cooldown < 0)? 0 : this->remaining_fire_cooldown - elapsed; 
+        }
+      }
+
+      for(Bullet *bullet : this->bullets_){
+        bullet->Update(window, elapsed);
+      }
       window.draw(this->sprite_);
+    }
+
+    void Fire(){
+      this->bullets_.push_back(
+          new Bullet(true, *(this->bullet_texture_), this->sprite_.getPosition().x, this->sprite_.getGlobalBounds().top)
+      );
+      //Bullet new_bullet = Bullet(true, *(this->bullet_texture_), this->sprite_.getPosition());  
     }
     
 };
@@ -174,7 +228,7 @@ class AlienCovenant: protected Movable{
 
 
 int main(){
-  // ToDo check if real improvement
+  // todo check if real improvement
   std::vector<sf::VideoMode> * modes = new std::vector<sf::VideoMode>{sf::VideoMode::getFullscreenModes()};
   //const unsigned int screen_width = 800;
   //const unsigned int screen_height = 400;
@@ -195,7 +249,7 @@ int main(){
     return EXIT_FAILURE;
   }
 
-  Player player(textures->GetPlayer(), screen_width, screen_height);
+  Player player(textures->GetPlayer(), screen_width, screen_height, textures->GetRocket());
   AlienCovenant covenant;
   Alien alien1(textures->GetAlien(),1);
   Alien alien2(textures->GetAlien(),2);
