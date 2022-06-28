@@ -104,7 +104,7 @@ class Player: protected Movable{
     const int player_height_ = 150; // Pixels
     const float speed_ = 0.625;      // pixels / millisecond
     sf::Texture *bullet_texture_;
-    std::vector<Bullet*> bullets_;    // todo deconstructor
+    std::vector<Bullet*> bullets_;   
     const int fire_cooldown = 300;
     int remaining_fire_cooldown = fire_cooldown; 
   public:
@@ -118,6 +118,13 @@ class Player: protected Movable{
       this->bullet_texture_ = bullet_texture;
       // Calc the maximum amount of bullets based on screen size, bullet speed and fire cooldown
       this->bullets_.reserve((screen_height/Bullet::speed_)/this->fire_cooldown);
+    }
+    ~Player(){
+      // Clean bullet vector
+      for(Bullet *bullet : this->bullets_){
+        delete bullet;
+        bullet = nullptr;
+      } 
     }
 
     void Update(sf::RenderWindow &window, int elapsed){
@@ -175,15 +182,34 @@ class Player: protected Movable{
 class Alien: protected Movable{
   private: 
     sf::Sprite sprite_;
-    const int alien_height_ = 100;        // Pixels
+    //const int alien_width_ = 100;        // Pixels
     const float speed_ = 0.3125;           // Pixels / millisecond
+    int soldier_num;
   public:
-    Alien(sf::Texture *alien_texture, int soldier_num){
+    static const int alien_width_;
+    Alien(sf::Texture *alien_texture, int soldier_num, int formation_col, int formation_row, int screen_margin, int row_margin, int col_margin){
       this->sprite_.setTexture(*alien_texture);
       this->sprite_.setOrigin(this->sprite_.getLocalBounds().width/2, this->sprite_.getLocalBounds().height/2);
-      float scale = GetScale(this->sprite_.getGlobalBounds().height, this->alien_height_);
+      float scale = GetScale(this->sprite_.getGlobalBounds().width, this->alien_width_);
       this->sprite_.setScale(scale, scale);
-      this->sprite_.setPosition(this->sprite_.getGlobalBounds().width * soldier_num, this->sprite_.getGlobalBounds().height);
+     
+      // Set alien at initial position (checking screen margin) 
+      this->sprite_.setPosition(this->sprite_.getGlobalBounds().width + screen_margin, this->sprite_.getGlobalBounds().height);
+      // Move to relative position based on row/col margins and formation position
+      this->sprite_.move(
+          (
+            this->sprite_.getGlobalBounds().width
+            + row_margin
+            + screen_margin
+          )
+        * formation_col,
+          (
+            this->sprite_.getGlobalBounds().height
+            + col_margin
+          )
+        * formation_row
+      );
+
     }
 
     void Move(Movable::Direction direction, int elapsed){
@@ -193,33 +219,58 @@ class Alien: protected Movable{
       window.draw(this->sprite_);
     }
 };
+constexpr int Alien::alien_width_ = 100;
 
 class AlienCovenant: protected Movable{
   private:
     std::vector<Alien*> covenant_;
-    Movable::Direction movement_loop[4];
+    Movable::Direction movement_loop[8];  
     int current_direction; 
     const int stall_duration = 1200;  // Milliseconds
     const int movement_duration = 200;        // Milliseconds
     float elapsed_stall = 0;
     float elapsed_movement = 0;
+    const int row_margin_ = 15;  // pixels
+    const int col_margin_ = 15;
+    const int screen_margin_ = 10;
+    int aliens_per_row_;
   protected:
     Movable::Direction GetCurrentDirection(){
       return movement_loop[this->current_direction];
     }
     void UpdateDirection(){
-      this->current_direction = (this->current_direction+1) % 4;
+      this->current_direction = (this->current_direction+1) % 8;    // todo NOT hardcoded
     }
   public:
-    AlienCovenant(){
-      // todo Create aliens here?!
+    AlienCovenant(char num_aliens, sf::Texture *alien_texture, const unsigned int &screen_width){
       this->movement_loop[0] = Movable::Direction::kRight;
       this->movement_loop[1] = Movable::Direction::kDown;
       this->movement_loop[2] = Movable::Direction::kLeft;
-      this->movement_loop[3] = Movable::Direction::kDown;
+      this->movement_loop[3] = Movable::Direction::kUp;
+      this->movement_loop[4] = Movable::Direction::kRight;
+      this->movement_loop[5] = Movable::Direction::kDown;
+      this->movement_loop[6] = Movable::Direction::kLeft;
+      this->movement_loop[7] = Movable::Direction::kDown;
 
       this->current_direction = 0;
+
       this->covenant_.reserve(50);
+
+      // Create aliens
+      this->aliens_per_row_ = screen_width/(Alien::alien_width_ + this->row_margin_ + (2 * this->screen_margin_));
+      for(int i = 0; i<num_aliens; ++i){
+        int formation_col = i%this->aliens_per_row_;
+        int formation_row = i/this->aliens_per_row_;
+        this->covenant_.push_back(
+          new Alien(alien_texture, i, formation_col, formation_row, this->screen_margin_, this->row_margin_, this->col_margin_)
+        );
+      }
+    }
+    ~AlienCovenant(){
+      for(Alien *alien : this->covenant_){
+        delete alien;
+        alien = nullptr;
+      }
     }
     
     void Enlist(Alien *new_alien){
@@ -275,27 +326,7 @@ int main(){
   }
 
   Player player(textures->GetPlayer(), screen_width, screen_height, textures->GetRocket());
-  AlienCovenant covenant;
-  Alien alien1(textures->GetAlien(),1);
-  Alien alien2(textures->GetAlien(),2);
-  Alien alien3(textures->GetAlien(),3);
-  Alien alien4(textures->GetAlien(),4);
-  Alien alien5(textures->GetAlien(),5);
-  Alien alien6(textures->GetAlien(),6);
-  Alien alien7(textures->GetAlien(),7);
-  Alien alien8(textures->GetAlien(),8);
-  Alien alien9(textures->GetAlien(),9);
-  Alien alien10(textures->GetAlien(),10);
-  covenant.Enlist(&alien1);
-  covenant.Enlist(&alien2);
-  covenant.Enlist(&alien3);
-  covenant.Enlist(&alien4);
-  covenant.Enlist(&alien5);
-  covenant.Enlist(&alien6);
-  covenant.Enlist(&alien7);
-  covenant.Enlist(&alien8);
-  covenant.Enlist(&alien9);
-  covenant.Enlist(&alien10);
+  AlienCovenant covenant = AlienCovenant(28, textures->GetAlien(), screen_width);
   //////
   sf::Clock clock;
   while(window.isOpen()){
