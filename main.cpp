@@ -76,6 +76,7 @@ class Bullet: protected Movable{
     sf::Sprite sprite_;
     //const int bullet_height_ = 40;
     bool friendy;
+    sf::FloatRect hitbox_;
   public:
     static const float speed_;   // pixels / milliseconds
     static const int bullet_height_;
@@ -85,6 +86,7 @@ class Bullet: protected Movable{
       float scale = GetScale(this->sprite_.getGlobalBounds().height, this->bullet_height_);
       this->sprite_.setScale(scale, scale);
       this->sprite_.setPosition(pos_x, pos_y);
+      this->hitbox_ = {0.f,0.f, this->sprite_.getGlobalBounds().width, this->sprite_.getGlobalBounds().height};
     }
     void Update(sf::RenderWindow &window, int elapsed){
       Movable::Move(this->sprite_, Movable::Direction::kUp, elapsed * this->speed_);
@@ -94,17 +96,22 @@ class Bullet: protected Movable{
       return this->sprite_.getPosition();
     }
 
+    sf::FloatRect GetHitBox(){
+      return this->sprite_.getTransform().transformRect(this->hitbox_);
+    }
+
 };
 constexpr float Bullet::speed_ = 0.6;
 constexpr int Bullet::bullet_height_ = 40;
 
-class Player: protected Movable{
+class Player: protected Movable{    // todo Inherit from sprite?
   private:
     sf::Sprite sprite_;
     const int player_height_ = 150; // Pixels
     const float speed_ = 0.625;      // pixels / millisecond
     sf::Texture *bullet_texture_;
     std::vector<Bullet*> bullets_;   
+    std::vector<sf::FloatRect> bullets_hitboxes_;
     const int fire_cooldown = 300;
     int remaining_fire_cooldown = fire_cooldown; 
   public:
@@ -119,6 +126,7 @@ class Player: protected Movable{
       this->bullet_texture_ = bullet_texture;
       // Calc the maximum amount of bullets based on screen size, bullet speed and fire cooldown
       this->bullets_.reserve((screen_height/Bullet::speed_)/this->fire_cooldown);
+      this->bullets_hitboxes_.reserve((screen_height/Bullet::speed_)/this->fire_cooldown);
     }
     ~Player(){
       // Clean bullet vector
@@ -148,21 +156,28 @@ class Player: protected Movable{
         }
       }
 
+
       for(Bullet *bullet : this->bullets_){
+        sf::RectangleShape rectangle;
+        rectangle.setPosition(bullet->GetHitBox().top, bullet->GetHitBox().left);
+        rectangle.setSize(sf::Vector2f(bullet->GetHitBox().width, bullet->GetHitBox().height));
+        rectangle.setOutlineColor(sf::Color::Red);
+        window.draw(rectangle);
+
         bullet->Update(window, elapsed);
       }
       window.draw(this->sprite_);
     }
 
     void Fire(){
-      this->bullets_.push_back(
-        new Bullet(
+      Bullet *new_bullet = new Bullet(
           true, 
-          *(this->bullet_texture_), 
-          this->sprite_.getPosition().x, 
+          *(this->bullet_texture_),
+          this->sprite_.getPosition().x,
           this->sprite_.getGlobalBounds().top
-        )
       );
+      this->bullets_.push_back(new_bullet);
+      this->bullets_hitboxes_.push_back(new_bullet->GetHitBox());
     }
     void ClearBullets(){
       unsigned i =0;
@@ -172,11 +187,20 @@ class Player: protected Movable{
           delete bullet;
           bullet = nullptr;
           this->bullets_.erase(this->bullets_.begin()+i);
+          this->bullets_hitboxes_.erase(this->bullets_hitboxes_.begin()+i);
 
-      std::cout << "cap" << this->bullets_.capacity() << " size:" << this->bullets_.size() << "\n";
+      //std::cout << "cap" << this->bullets_.capacity() << " size:" << this->bullets_.size() << "\n";
         }
         ++i;
       }
+    }
+
+    std::vector<sf::FloatRect> GetBulletsHitBoxes(){
+      unsigned i = 0;
+      for(Bullet *bullet : this->bullets_){
+        this->bullets_hitboxes_.at(i) = (*this->bullets_.at(i)).GetHitBox();
+      }
+      return this->bullets_hitboxes_;
     }
 };
 
@@ -186,6 +210,7 @@ class Alien: protected Movable{
     //const int alien_width_ = 100;        // Pixels
     const float speed_ = 0.3125;           // Pixels / millisecond
     int soldier_num;
+    sf::FloatRect hitbox_;
   public:
     static const int alien_width_;
     Alien(sf::Texture *alien_texture, int soldier_num, int formation_col, int formation_row, int screen_margin, int row_margin, int col_margin){
@@ -202,14 +227,13 @@ class Alien: protected Movable{
             this->sprite_.getGlobalBounds().width
             + row_margin
             + screen_margin
-          )
-        * formation_col,
+          )  * formation_col,
           (
             this->sprite_.getGlobalBounds().height
             + col_margin
-          )
-        * formation_row
+          )  * formation_row
       );
+      this->hitbox_ = {0.f, 0.f, this->sprite_.getGlobalBounds().width, this->sprite_.getGlobalBounds().height};
 
     }
 
@@ -218,6 +242,10 @@ class Alien: protected Movable{
     }
     void Draw(sf::RenderWindow &window){
       window.draw(this->sprite_);
+    }
+
+    sf::FloatRect GetHitBox(){
+      return this->sprite_.getTransform().transformRect(this->hitbox_);
     }
 };
 constexpr int Alien::alien_width_ = 100;
@@ -256,7 +284,6 @@ class AlienCovenant: protected Movable{
       this->current_direction = 0;
 
       this->covenant_.reserve(num_aliens);
-      this->covenant_hitboxes_.reserve(num_aliens);
 
       // Create aliens
       this->aliens_per_row_ = screen_width/(Alien::alien_width_ + this->row_margin_ + (2 * this->screen_margin_));
@@ -274,21 +301,12 @@ class AlienCovenant: protected Movable{
         alien = nullptr;
       }
     }
-    /* Depreciated
-    void Enlist(Alien *new_alien){
-      this->covenant_.push_back(new_alien);
-    }
-    */
 
-    void Update(sf::RenderWindow &window, int elapsed){
+    void Update(sf::RenderWindow &window, int elapsed, const std::vector<sf::FloatRect> &bullet_hitboxes){
       elapsed_stall += elapsed;
       if(elapsed_stall > stall_duration){
         elapsed_movement += elapsed;
-        /*
-        for(Alien *soldier : this->covenant_){
-          soldier->Move(AlienCovenant::GetCurrentDirection(), elapsed);
-        }
-        */
+
         if(elapsed_movement > movement_duration){
           elapsed_stall = 0;
           elapsed_movement = 0;
@@ -296,10 +314,25 @@ class AlienCovenant: protected Movable{
         }
       }
       for(Alien *soldier : this->covenant_){
-        // re do movement check to avoid double covenant range-base loop
+        // movement here check to avoid double covenant range-base loop
+        /*
         if(elapsed_movement > 0 && elapsed_movement <= movement_duration){
           soldier->Move(AlienCovenant::GetCurrentDirection(), elapsed);
         }
+        */
+        for(sf::FloatRect bullet_hitbox : bullet_hitboxes){
+          //std::cout << "Alien hitbox:\n" 
+          //  << soldier->GetHitBox().top << "," << soldier->GetHitBox().left  
+          //  << "," << soldier->GetHitBox().width << "," << soldier->GetHitBox().height <<"\n";
+          if(soldier->GetHitBox().intersects(bullet_hitbox)){
+            std::cout << "PWND\n";
+          }
+        }
+        sf::RectangleShape rectangle;
+        rectangle.setPosition(soldier->GetHitBox().top, soldier->GetHitBox().left);
+        rectangle.setSize(sf::Vector2f(soldier->GetHitBox().width, soldier->GetHitBox().height));
+        rectangle.setOutlineColor(sf::Color::Red);
+        window.draw(rectangle);
         soldier->Draw(window);
       }
     }
@@ -348,7 +381,7 @@ int main(){
       window.clear(sf::Color(142,142,142));
    
       player.Update(window, elapsed.asMilliseconds()); 
-      covenant.Update(window, elapsed.asMilliseconds());
+      covenant.Update(window, elapsed.asMilliseconds(), player.GetBulletsHitBoxes());
 
       window.display();
     }else{
