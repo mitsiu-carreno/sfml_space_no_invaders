@@ -114,6 +114,7 @@ class Player: protected Movable{
       float scale = GetScale(this->sprite_.getGlobalBounds().height, this->player_height_);
       this->sprite_.setScale(scale, scale); 
       this->sprite_.setPosition(screen_width*0.5, screen_height*0.7);
+      this->sprite_.setColor(sf::Color::Red);
 
       this->bullet_texture_ = bullet_texture;
       // Calc the maximum amount of bullets based on screen size, bullet speed and fire cooldown
@@ -254,7 +255,8 @@ class AlienCovenant: protected Movable{
 
       this->current_direction = 0;
 
-      this->covenant_.reserve(50);
+      this->covenant_.reserve(num_aliens);
+      this->covenant_hitboxes_.reserve(num_aliens);
 
       // Create aliens
       this->aliens_per_row_ = screen_width/(Alien::alien_width_ + this->row_margin_ + (2 * this->screen_margin_));
@@ -272,10 +274,11 @@ class AlienCovenant: protected Movable{
         alien = nullptr;
       }
     }
-    
+    /* Depreciated
     void Enlist(Alien *new_alien){
       this->covenant_.push_back(new_alien);
     }
+    */
 
     void Update(sf::RenderWindow &window, int elapsed){
       elapsed_stall += elapsed;
@@ -326,7 +329,7 @@ int main(){
   }
 
   Player player(textures->GetPlayer(), screen_width, screen_height, textures->GetRocket());
-  AlienCovenant covenant = AlienCovenant(28, textures->GetAlien(), screen_width);
+  AlienCovenant covenant = AlienCovenant(1, textures->GetAlien(), screen_width);
   //////
   sf::Clock clock;
   while(window.isOpen()){
