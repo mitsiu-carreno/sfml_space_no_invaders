@@ -85,7 +85,7 @@ class Bullet: protected Movable{
       float scale = GetScale(this->sprite_.getGlobalBounds().height, this->bullet_height_);
       this->sprite_.setScale(scale, scale);
       this->sprite_.setPosition(pos_x, pos_y);
-      this->hitbox_ = {0.f,0.f, this->sprite_.getGlobalBounds().width, this->sprite_.getGlobalBounds().height};
+      this->hitbox_ = {0.f,0.f, this->sprite_.getLocalBounds().width, this->sprite_.getLocalBounds().height};
     }
     void Update(sf::RenderWindow &window, int elapsed){
       Movable::Move(this->sprite_, Movable::Direction::kUp, elapsed * this->speed_);
@@ -157,13 +157,17 @@ class Player: protected Movable{    // todo Inherit from sprite?
 
 
       for(Bullet *bullet : this->bullets_){
-        sf::RectangleShape rectangle;
-        rectangle.setPosition(bullet->GetHitBox().top, bullet->GetHitBox().left);
-        rectangle.setSize(sf::Vector2f(bullet->GetHitBox().width, bullet->GetHitBox().height));
-        rectangle.setOutlineColor(sf::Color::Red);
-        window.draw(rectangle);
-
         bullet->Update(window, elapsed);
+        /* Debug
+        sf::RectangleShape rectangle;
+        rectangle.setPosition(bullet->GetHitBox().left, bullet->GetHitBox().top);
+        rectangle.setSize(sf::Vector2f(bullet->GetHitBox().width, bullet->GetHitBox().height));
+        rectangle.setFillColor(sf::Color::Transparent);
+        rectangle.setOutlineColor(sf::Color::Red);
+        rectangle.setOutlineThickness(3.f);
+
+        window.draw(rectangle);
+        */
       }
       window.draw(this->sprite_);
     }
@@ -210,6 +214,8 @@ class Alien: protected Movable{
     const float speed_ = 0.3125;           // Pixels / millisecond
     int soldier_num;
     sf::FloatRect hitbox_;
+    const float hitbox_x_margin_percentage_ = 0.25;
+    const float hitbox_y_margin_percentage_ = 0.35;
   public:
     static const int alien_width_;
     Alien(sf::Texture *alien_texture, int soldier_num, int formation_col, int formation_row, int screen_margin, int row_margin, int col_margin){
@@ -232,8 +238,17 @@ class Alien: protected Movable{
             + col_margin
           )  * formation_row
       );
-      this->hitbox_ = {0.f, 0.f, this->sprite_.getGlobalBounds().width, this->sprite_.getGlobalBounds().height};
+      this->sprite_.setColor(sf::Color::Red);
 
+      // Create hitbox
+      float sprite_width = this->sprite_.getLocalBounds().width;
+      float hitbox_x_margin = sprite_width * hitbox_x_margin_percentage_;
+      float hitbox_width = sprite_width - (hitbox_x_margin * 2); 
+
+      float sprite_height = this->sprite_.getLocalBounds().height;
+      float hitbox_y_margin = sprite_height * hitbox_y_margin_percentage_;
+      float hitbox_height = sprite_height - (hitbox_y_margin * 2);
+      this->hitbox_ = {hitbox_x_margin, hitbox_y_margin, hitbox_width, hitbox_height};
     }
 
     void Move(Movable::Direction direction, int elapsed){
@@ -315,21 +330,21 @@ class AlienCovenant: protected Movable{
       for(Alien *soldier : this->covenant_){
         // movement here check to avoid double covenant range-base loop
         if(elapsed_movement > 0 && elapsed_movement <= movement_duration){
-          //soldier->Move(AlienCovenant::GetCurrentDirection(), elapsed);
+          soldier->Move(AlienCovenant::GetCurrentDirection(), elapsed);
         }
         for(sf::FloatRect bullet_hitbox : bullet_hitboxes){
-          //std::cout << "Alien hitbox:\n" 
-          //  << soldier->GetHitBox().top << "," << soldier->GetHitBox().left  
-          //  << "," << soldier->GetHitBox().width << "," << soldier->GetHitBox().height <<"\n";
           if(soldier->GetHitBox().intersects(bullet_hitbox)){
+
             std::cout << "PWND\n";
           }
         }
+        /* Debug
         sf::RectangleShape rectangle;
-        rectangle.setPosition(soldier->GetHitBox().top, soldier->GetHitBox().left);
+        rectangle.setPosition(soldier->GetHitBox().left, soldier->GetHitBox().top);
         rectangle.setSize(sf::Vector2f(soldier->GetHitBox().width, soldier->GetHitBox().height));
-        rectangle.setOutlineColor(sf::Color::Red);
+        rectangle.setFillColor(sf::Color::Red);
         window.draw(rectangle);
+        */
         soldier->Draw(window);
       }
     }
