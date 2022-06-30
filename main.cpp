@@ -77,6 +77,7 @@ class Bullet: protected Movable{
     bool friendy;
     sf::FloatRect hitbox_;
   public:
+    bool active = true;
     static const float speed_;   // pixels / milliseconds
     static const int bullet_height_;
     Bullet(bool friendly, sf::Texture& texture, float pos_x, float pos_y){
@@ -98,6 +99,8 @@ class Bullet: protected Movable{
     sf::FloatRect GetHitBox(){
       return this->sprite_.getTransform().transformRect(this->hitbox_);
     }
+
+
 
 };
 constexpr float Bullet::speed_ = 0.6;
@@ -182,10 +185,11 @@ class Player: protected Movable{    // todo Inherit from sprite?
       this->bullets_.push_back(new_bullet);
       this->bullets_hitboxes_.push_back(new_bullet->GetHitBox());
     }
+
     void ClearBullets(){
       unsigned i =0;
       for(Bullet *bullet : this->bullets_){
-        if(bullet->GetPosition().y < 0 - Bullet::bullet_height_){
+        if(bullet->GetPosition().y < 0 - Bullet::bullet_height_ || !bullet->active){
           std::cout << "Delete at " << bullet->GetPosition().y << "\n"; 
           delete bullet;
           bullet = nullptr;
@@ -202,6 +206,7 @@ class Player: protected Movable{    // todo Inherit from sprite?
       unsigned i = 0;
       for(Bullet *bullet : this->bullets_){
         this->bullets_hitboxes_.at(i) = (*this->bullets_.at(i)).GetHitBox();
+        ++i;
       }
       return this->bullets_hitboxes_;
     }
@@ -332,11 +337,12 @@ class AlienCovenant: protected Movable{
         if(elapsed_movement > 0 && elapsed_movement <= movement_duration){
           soldier->Move(AlienCovenant::GetCurrentDirection(), elapsed);
         }
+        unsigned int i = 0;
         for(sf::FloatRect bullet_hitbox : bullet_hitboxes){
           if(soldier->GetHitBox().intersects(bullet_hitbox)){
-
             std::cout << "PWND\n";
           }
+          ++i;
         }
         /* Debug
         sf::RectangleShape rectangle;
@@ -347,6 +353,18 @@ class AlienCovenant: protected Movable{
         */
         soldier->Draw(window);
       }
+    }
+};
+
+class BulletPack{
+  private:
+    std::vector<Bullet*> bullets_;
+  public:
+    void AddBullet(Bullet * new_bullet){
+      
+    }
+    void DeleteBullet(unsigned int i){
+      
     }
 };
 
