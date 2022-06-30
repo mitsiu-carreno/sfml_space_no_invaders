@@ -74,7 +74,6 @@ class Movable{
 class Bullet: protected Movable{
   private:
     sf::Sprite sprite_;
-    //const int bullet_height_ = 40;
     bool friendy;
     sf::FloatRect hitbox_;
   public:
@@ -315,11 +314,9 @@ class AlienCovenant: protected Movable{
       }
       for(Alien *soldier : this->covenant_){
         // movement here check to avoid double covenant range-base loop
-        /*
         if(elapsed_movement > 0 && elapsed_movement <= movement_duration){
-          soldier->Move(AlienCovenant::GetCurrentDirection(), elapsed);
+          //soldier->Move(AlienCovenant::GetCurrentDirection(), elapsed);
         }
-        */
         for(sf::FloatRect bullet_hitbox : bullet_hitboxes){
           //std::cout << "Alien hitbox:\n" 
           //  << soldier->GetHitBox().top << "," << soldier->GetHitBox().left  
