@@ -117,9 +117,7 @@ class BulletMagazine{
       this->bullets_.reserve((screen_height/Bullet::speed_)/fire_cooldown);
     }
     void Update(sf::RenderWindow &window, int elapsed){
-      std::cout << "Called\n";
-      for(Bullet bullet : this->bullets_){
-        std::cout << "Update bullet\n";
+      for(Bullet &bullet : this->bullets_){
         bullet.Update(window, elapsed);
         /* Debug
         sf::RectangleShape rectangle;
@@ -148,10 +146,10 @@ class BulletMagazine{
     void ClearBullets(){
       unsigned i = 0;
       unsigned deleted = -1;
-      for(Bullet bullet : this->bullets_){
+      for(Bullet &bullet : this->bullets_){
         if(bullet.GetPosition().y < 0 - Bullet::bullet_height_ || !bullet.active){
-          std::cout << "Will delete at " << bullet.GetPosition().y << "\n";
-          //std::cout << "cap" << this->bullets_.capacity() << " size:" << this->bullets_.size() << "\n";
+          //std::cout << "Will delete at " << bullet.GetPosition().y << "\n";
+          std::cout << "cap" << this->bullets_.capacity() << " size:" << this->bullets_.size() << "\n";
           deleted = i;
         }
         ++i;
@@ -163,7 +161,7 @@ class BulletMagazine{
     std::vector<sf::FloatRect> GetBulletsHitBoxes(){
       std::vector<sf::FloatRect> temp;
       temp.reserve(this->bullets_.size());
-      for(Bullet bullet : this->bullets_){
+      for(Bullet &bullet : this->bullets_){
         temp.push_back(bullet.GetHitBox());
       }
       return temp;
