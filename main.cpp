@@ -106,18 +106,90 @@ class Bullet: protected Movable{
 constexpr float Bullet::speed_ = 0.6;
 constexpr int Bullet::bullet_height_ = 40;
 
+class BulletMagazine{
+  private:
+    sf::Texture *bullet_texture_;
+    std::vector<Bullet> bullets_;
+    bool friendly;    // todo adapt friendly here
+  public:
+    BulletMagazine(unsigned int screen_height, const int fire_cooldown, sf::Texture *bullet_texture){
+      this->bullet_texture_ = bullet_texture;
+      this->bullets_.reserve((screen_height/Bullet::speed_)/fire_cooldown);
+    }
+    void Update(sf::RenderWindow &window, int elapsed){
+      std::cout << "Called\n";
+      for(Bullet bullet : this->bullets_){
+        std::cout << "Update bullet\n";
+        bullet.Update(window, elapsed);
+        /* Debug
+        sf::RectangleShape rectangle;
+        rectangle.setPosition(bullet->GetHitBox().left, bullet->GetHitBox().top);
+        rectangle.setSize(sf::Vector2f(bullet->GetHitBox().width, bullet->GetHitBox().height));
+        rectangle.setFillColor(sf::Color::Transparent);
+        rectangle.setOutlineColor(sf::Color::Red);
+        rectangle.setOutlineThickness(3.f);
+
+        window.draw(rectangle);
+        */
+      }
+    }
+    void AddBullet(int friendly, float pos_x, float pos_y){
+      Bullet *new_bullet = new Bullet(
+          friendly, 
+          *(this->bullet_texture_),
+          pos_x,
+          pos_y
+      );
+      this->bullets_.push_back(*new_bullet);
+    }
+    void DeleteBullet(unsigned int i){
+      
+    }
+    void ClearBullets(){
+      unsigned i = 0;
+      unsigned deleted = -1;
+      for(Bullet bullet : this->bullets_){
+        if(bullet.GetPosition().y < 0 - Bullet::bullet_height_ || !bullet.active){
+          std::cout << "Will delete at " << bullet.GetPosition().y << "\n";
+          //std::cout << "cap" << this->bullets_.capacity() << " size:" << this->bullets_.size() << "\n";
+          deleted = i;
+        }
+        ++i;
+      }
+      if(deleted != -1){
+        this->bullets_.erase(this->bullets_.begin()+deleted);
+      }
+    }
+    std::vector<sf::FloatRect> GetBulletsHitBoxes(){
+      std::vector<sf::FloatRect> temp;
+      temp.reserve(this->bullets_.size());
+      for(Bullet bullet : this->bullets_){
+        temp.push_back(bullet.GetHitBox());
+      }
+      return temp;
+    }
+};
+
 class Player: protected Movable{    // todo Inherit from sprite?
   private:
     sf::Sprite sprite_;
     const int player_height_ = 150; // Pixels
     const float speed_ = 0.625;      // pixels / millisecond
     sf::Texture *bullet_texture_;
-    std::vector<Bullet*> bullets_;   
-    std::vector<sf::FloatRect> bullets_hitboxes_;
     const int fire_cooldown = 300;
     int remaining_fire_cooldown = fire_cooldown; 
+    BulletMagazine magazine_;
   public:
-    Player(sf::Texture *player_texture, unsigned int screen_width, unsigned int screen_height, sf::Texture *bullet_texture){
+    Player(
+        sf::Texture *player_texture, 
+        unsigned int screen_width, 
+        unsigned int screen_height, 
+        sf::Texture *bullet_texture
+    ):magazine_(
+        screen_height, 
+        this->fire_cooldown, 
+        bullet_texture
+     ){
       this->sprite_.setTexture(*player_texture);
       this->sprite_.setOrigin(this->sprite_.getLocalBounds().width/2, this->sprite_.getLocalBounds().height/2);
       float scale = GetScale(this->sprite_.getGlobalBounds().height, this->player_height_);
@@ -127,15 +199,8 @@ class Player: protected Movable{    // todo Inherit from sprite?
 
       this->bullet_texture_ = bullet_texture;
       // Calc the maximum amount of bullets based on screen size, bullet speed and fire cooldown
-      this->bullets_.reserve((screen_height/Bullet::speed_)/this->fire_cooldown);
-      this->bullets_hitboxes_.reserve((screen_height/Bullet::speed_)/this->fire_cooldown);
-    }
-    ~Player(){
-      // Clean bullet vector
-      for(Bullet *bullet : this->bullets_){
-        delete bullet;
-        bullet = nullptr;
-      } 
+      //this->bullets_.reserve((screen_height/Bullet::speed_)/this->fire_cooldown);
+      
     }
 
     void Update(sf::RenderWindow &window, int elapsed){
@@ -158,57 +223,20 @@ class Player: protected Movable{    // todo Inherit from sprite?
         }
       }
 
-
-      for(Bullet *bullet : this->bullets_){
-        bullet->Update(window, elapsed);
-        /* Debug
-        sf::RectangleShape rectangle;
-        rectangle.setPosition(bullet->GetHitBox().left, bullet->GetHitBox().top);
-        rectangle.setSize(sf::Vector2f(bullet->GetHitBox().width, bullet->GetHitBox().height));
-        rectangle.setFillColor(sf::Color::Transparent);
-        rectangle.setOutlineColor(sf::Color::Red);
-        rectangle.setOutlineThickness(3.f);
-
-        window.draw(rectangle);
-        */
-      }
+      this->magazine_.Update(window, elapsed); 
       window.draw(this->sprite_);
     }
 
     void Fire(){
-      Bullet *new_bullet = new Bullet(
-          true, 
-          *(this->bullet_texture_),
-          this->sprite_.getPosition().x,
-          this->sprite_.getGlobalBounds().top
-      );
-      this->bullets_.push_back(new_bullet);
-      this->bullets_hitboxes_.push_back(new_bullet->GetHitBox());
+      this->magazine_.AddBullet(true, this->sprite_.getPosition().x, this->sprite_.getGlobalBounds().top);
     }
 
     void ClearBullets(){
-      unsigned i =0;
-      for(Bullet *bullet : this->bullets_){
-        if(bullet->GetPosition().y < 0 - Bullet::bullet_height_ || !bullet->active){
-          std::cout << "Delete at " << bullet->GetPosition().y << "\n"; 
-          delete bullet;
-          bullet = nullptr;
-          this->bullets_.erase(this->bullets_.begin()+i);
-          this->bullets_hitboxes_.erase(this->bullets_hitboxes_.begin()+i);
-
-      //std::cout << "cap" << this->bullets_.capacity() << " size:" << this->bullets_.size() << "\n";
-        }
-        ++i;
-      }
+      this->magazine_.ClearBullets();
     }
 
     std::vector<sf::FloatRect> GetBulletsHitBoxes(){
-      unsigned i = 0;
-      for(Bullet *bullet : this->bullets_){
-        this->bullets_hitboxes_.at(i) = (*this->bullets_.at(i)).GetHitBox();
-        ++i;
-      }
-      return this->bullets_hitboxes_;
+      return this->magazine_.GetBulletsHitBoxes();
     }
 };
 
@@ -355,19 +383,6 @@ class AlienCovenant: protected Movable{
       }
     }
 };
-
-class BulletPack{
-  private:
-    std::vector<Bullet*> bullets_;
-  public:
-    void AddBullet(Bullet * new_bullet){
-      
-    }
-    void DeleteBullet(unsigned int i){
-      
-    }
-};
-
 
 int main(){
   // todo check if real improvement
