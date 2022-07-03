@@ -106,15 +106,40 @@ class Bullet: protected Movable{
 constexpr float Bullet::speed_ = 0.6;
 constexpr int Bullet::bullet_height_ = 40;
 
+class AlienAccessPlayerMagazine{  // todo rename
+  private: 
+    std::vector<Bullet>* bullets_;
+  public:
+    //AlienAccessPlayerMagazine(std::vector<Bullet> *vec): bullets_{vec}{}
+
+    void SetBulletsPointer(std::vector<Bullet> *p){
+      this->bullets_ = p;
+    }
+    std::vector<sf::FloatRect> GetBulletsHitBoxes(){
+      std::vector<sf::FloatRect> temp;
+      temp.reserve((*this->bullets_).size());
+      for(Bullet &bullet : (*this->bullets_)){
+        temp.push_back(bullet.GetHitBox());
+      }
+      return temp;
+    }
+
+    void DeleteBullet(unsigned int i){
+      (*this->bullets_).erase((*this->bullets_).begin() + i);
+    }
+};
+
 class BulletMagazine{
   private:
     sf::Texture *bullet_texture_;
     std::vector<Bullet> bullets_;
+    AlienAccessPlayerMagazine player_magazine_;
     bool friendly;    // todo adapt friendly here
   public:
     BulletMagazine(unsigned int screen_height, const int fire_cooldown, sf::Texture *bullet_texture){
       this->bullet_texture_ = bullet_texture;
       this->bullets_.reserve((screen_height/Bullet::speed_)/fire_cooldown);
+      player_magazine_.SetBulletsPointer(&this->bullets_);
     }
     void Update(sf::RenderWindow &window, int elapsed){
       for(Bullet &bullet : this->bullets_){
@@ -140,9 +165,11 @@ class BulletMagazine{
       );
       this->bullets_.push_back(*new_bullet);
     }
+    /*
     void DeleteBullet(unsigned int i){
-      
+      this->bullets_.erase(this->bullets_.begin()+i); 
     }
+    */
     void ClearBullets(){
       unsigned i = 0;
       unsigned deleted = -1;
@@ -158,6 +185,7 @@ class BulletMagazine{
         this->bullets_.erase(this->bullets_.begin()+deleted);
       }
     }
+    /*
     std::vector<sf::FloatRect> GetBulletsHitBoxes(){
       std::vector<sf::FloatRect> temp;
       temp.reserve(this->bullets_.size());
@@ -166,7 +194,18 @@ class BulletMagazine{
       }
       return temp;
     }
+    */
+    AlienAccessPlayerMagazine* GetPlayerMagazine(){
+      return &(this->player_magazine_);
+    }
 };
+
+/*class AlienAccessMagazine:private BulletMagazine{
+  public: 
+    using BulletMagazine::GetBulletsHitBoxes;
+    using BulletMagazine::DeleteBullet;
+};
+*/
 
 class Player: protected Movable{    // todo Inherit from sprite?
   private:
@@ -216,7 +255,7 @@ class Player: protected Movable{    // todo Inherit from sprite?
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::Space)){
         if(this->remaining_fire_cooldown == 0){
-          this->Fire(); 
+          this->magazine_.AddBullet(true, this->sprite_.getPosition().x, this->sprite_.getGlobalBounds().top);
           this->remaining_fire_cooldown = this->fire_cooldown;
         }
       }
@@ -225,17 +264,15 @@ class Player: protected Movable{    // todo Inherit from sprite?
       window.draw(this->sprite_);
     }
 
-    void Fire(){
-      this->magazine_.AddBullet(true, this->sprite_.getPosition().x, this->sprite_.getGlobalBounds().top);
-    }
-
     void ClearBullets(){
       this->magazine_.ClearBullets();
     }
-
-    std::vector<sf::FloatRect> GetBulletsHitBoxes(){
-      return this->magazine_.GetBulletsHitBoxes();
+    
+    AlienAccessPlayerMagazine* GetPlayerMagazine(){
+      //AlienAccessMagazine *player_magazine = &this->magazine_; 
+      return this->magazine_.GetPlayerMagazine();
     }
+    
 };
 
 class Alien: protected Movable{
@@ -247,6 +284,7 @@ class Alien: protected Movable{
     sf::FloatRect hitbox_;
     const float hitbox_x_margin_percentage_ = 0.25;
     const float hitbox_y_margin_percentage_ = 0.35;
+    bool active_ = true;
   public:
     static const int alien_width_;
     Alien(sf::Texture *alien_texture, int soldier_num, int formation_col, int formation_row, int screen_margin, int row_margin, int col_margin){
@@ -291,6 +329,10 @@ class Alien: protected Movable{
 
     sf::FloatRect GetHitBox(){
       return this->sprite_.getTransform().transformRect(this->hitbox_);
+    }
+
+    void Dead(){
+      this->active_ = false;
     }
 };
 constexpr int Alien::alien_width_ = 100;
@@ -347,7 +389,7 @@ class AlienCovenant: protected Movable{
       }
     }
 
-    void Update(sf::RenderWindow &window, int elapsed, const std::vector<sf::FloatRect> &bullet_hitboxes){
+    void Update(sf::RenderWindow &window, int elapsed, AlienAccessPlayerMagazine *player_magazine){
       elapsed_stall += elapsed;
       if(elapsed_stall > stall_duration){
         elapsed_movement += elapsed;
@@ -364,9 +406,11 @@ class AlienCovenant: protected Movable{
           soldier->Move(AlienCovenant::GetCurrentDirection(), elapsed);
         }
         unsigned int i = 0;
-        for(sf::FloatRect bullet_hitbox : bullet_hitboxes){
+        for(sf::FloatRect bullet_hitbox : (*player_magazine).GetBulletsHitBoxes()){
           if(soldier->GetHitBox().intersects(bullet_hitbox)){
             std::cout << "PWND\n";
+            soldier->Dead();
+            (*player_magazine).DeleteBullet(i);
           }
           ++i;
         }
@@ -424,7 +468,9 @@ int main(){
       window.clear(sf::Color(142,142,142));
    
       player.Update(window, elapsed.asMilliseconds()); 
-      covenant.Update(window, elapsed.asMilliseconds(), player.GetBulletsHitBoxes());
+      //AlienAccessPlayerMagazine *player_magazine = player.GetPlayerMagazine();
+      //player_magazine->GetBulletsHitBoxes();
+      covenant.Update(window, elapsed.asMilliseconds(), player.GetPlayerMagazine());
 
       window.display();
     }else{
