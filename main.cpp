@@ -106,12 +106,10 @@ class Bullet: protected Movable{
 constexpr float Bullet::speed_ = 0.6;
 constexpr int Bullet::bullet_height_ = 40;
 
-class AlienAccessPlayerMagazine{  // todo rename
+class PublicAccessEnemyMagazine{  
   private: 
     std::vector<Bullet>* bullets_;
   public:
-    //AlienAccessPlayerMagazine(std::vector<Bullet> *vec): bullets_{vec}{}
-
     void SetBulletsPointer(std::vector<Bullet> *p){
       this->bullets_ = p;
     }
@@ -133,11 +131,12 @@ class BulletMagazine{
   private:
     sf::Texture *bullet_texture_;
     std::vector<Bullet> bullets_;
-    AlienAccessPlayerMagazine player_magazine_;
+    PublicAccessEnemyMagazine player_magazine_;
     bool friendly;    // todo adapt friendly here
   public:
     BulletMagazine(unsigned int screen_height, const int fire_cooldown, sf::Texture *bullet_texture){
       this->bullet_texture_ = bullet_texture;
+      // Calc the maximum amount of bullets based on screen size, bullet speed and fire cooldown
       this->bullets_.reserve((screen_height/Bullet::speed_)/fire_cooldown);
       player_magazine_.SetBulletsPointer(&this->bullets_);
     }
@@ -165,11 +164,6 @@ class BulletMagazine{
       );
       this->bullets_.push_back(*new_bullet);
     }
-    /*
-    void DeleteBullet(unsigned int i){
-      this->bullets_.erase(this->bullets_.begin()+i); 
-    }
-    */
     void ClearBullets(){
       unsigned i = 0;
       unsigned deleted = -1;
@@ -185,34 +179,16 @@ class BulletMagazine{
         this->bullets_.erase(this->bullets_.begin()+deleted);
       }
     }
-    /*
-    std::vector<sf::FloatRect> GetBulletsHitBoxes(){
-      std::vector<sf::FloatRect> temp;
-      temp.reserve(this->bullets_.size());
-      for(Bullet &bullet : this->bullets_){
-        temp.push_back(bullet.GetHitBox());
-      }
-      return temp;
-    }
-    */
-    AlienAccessPlayerMagazine* GetPlayerMagazine(){
+    PublicAccessEnemyMagazine* GetPlayerMagazine(){
       return &(this->player_magazine_);
     }
 };
-
-/*class AlienAccessMagazine:private BulletMagazine{
-  public: 
-    using BulletMagazine::GetBulletsHitBoxes;
-    using BulletMagazine::DeleteBullet;
-};
-*/
 
 class Player: protected Movable{    // todo Inherit from sprite?
   private:
     sf::Sprite sprite_;
     const int player_height_ = 150; // Pixels
     const float speed_ = 0.625;      // pixels / millisecond
-    sf::Texture *bullet_texture_;
     const int fire_cooldown = 300;
     int remaining_fire_cooldown = fire_cooldown; 
     BulletMagazine magazine_;
@@ -233,11 +209,6 @@ class Player: protected Movable{    // todo Inherit from sprite?
       this->sprite_.setScale(scale, scale); 
       this->sprite_.setPosition(screen_width*0.5, screen_height*0.7);
       this->sprite_.setColor(sf::Color::Red);
-
-      this->bullet_texture_ = bullet_texture;
-      // Calc the maximum amount of bullets based on screen size, bullet speed and fire cooldown
-      //this->bullets_.reserve((screen_height/Bullet::speed_)/this->fire_cooldown);
-      
     }
 
     void Update(sf::RenderWindow &window, int elapsed){
@@ -268,8 +239,7 @@ class Player: protected Movable{    // todo Inherit from sprite?
       this->magazine_.ClearBullets();
     }
     
-    AlienAccessPlayerMagazine* GetPlayerMagazine(){
-      //AlienAccessMagazine *player_magazine = &this->magazine_; 
+    PublicAccessEnemyMagazine* GetPlayerMagazine(){
       return this->magazine_.GetPlayerMagazine();
     }
     
@@ -389,7 +359,7 @@ class AlienCovenant: protected Movable{
       }
     }
 
-    void Update(sf::RenderWindow &window, int elapsed, AlienAccessPlayerMagazine *player_magazine){
+    void Update(sf::RenderWindow &window, int elapsed, PublicAccessEnemyMagazine *player_magazine){
       elapsed_stall += elapsed;
       if(elapsed_stall > stall_duration){
         elapsed_movement += elapsed;
@@ -468,8 +438,6 @@ int main(){
       window.clear(sf::Color(142,142,142));
    
       player.Update(window, elapsed.asMilliseconds()); 
-      //AlienAccessPlayerMagazine *player_magazine = player.GetPlayerMagazine();
-      //player_magazine->GetBulletsHitBoxes();
       covenant.Update(window, elapsed.asMilliseconds(), player.GetPlayerMagazine());
 
       window.display();
