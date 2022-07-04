@@ -1,8 +1,10 @@
 // g++ main.cpp -o main -I SFML-2.5.1/include/ -L SFML-2.5.1/lib/ -lsfml-graphics -lsfml-window -lsfml-system  && export LD_LIBRARY_PATH=SFML-2.5.1/lib/  && ./main
 #include <SFML/Graphics.hpp>
 #include <iostream>
+#include <algorithm>    // std::remove_if
 #include <vector>
 // todo vector reserve everywhere
+// todo shoot back!
 
 float GetScale(float initial_measure, float target_measure){
   return target_measure/initial_measure;
@@ -76,10 +78,10 @@ class Bullet: protected Movable{
     sf::Sprite sprite_;
     bool friendy;
     sf::FloatRect hitbox_;
+    bool active_ = true;
   public:
-    bool active = true;
-    static const float speed_;   // pixels / milliseconds
-    static const int bullet_height_;
+    static constexpr float speed_ = 0.6;
+    static constexpr int bullet_height_ = 40; // pixels /milliseconds
     Bullet(bool friendly, sf::Texture& texture, float pos_x, float pos_y){
       this->sprite_.setTexture(texture);
       this->sprite_.setOrigin(this->sprite_.getLocalBounds().width/2, this->sprite_.getLocalBounds().height/2);
@@ -99,31 +101,29 @@ class Bullet: protected Movable{
     sf::FloatRect GetHitBox(){
       return this->sprite_.getTransform().transformRect(this->hitbox_);
     }
-
-
-
+    bool GetActive(){
+      return this->active_;
+    }
 };
-constexpr float Bullet::speed_ = 0.6;
-constexpr int Bullet::bullet_height_ = 40;
 
 class PublicAccessEnemyMagazine{  
   private: 
-    std::vector<Bullet>* bullets_;
+    std::vector<Bullet>* bullets_ptr_;
   public:
     void SetBulletsPointer(std::vector<Bullet> *p){
-      this->bullets_ = p;
+      this->bullets_ptr_ = p;
     }
     std::vector<sf::FloatRect> GetBulletsHitBoxes(){
       std::vector<sf::FloatRect> temp;
-      temp.reserve((*this->bullets_).size());
-      for(Bullet &bullet : (*this->bullets_)){
+      temp.reserve((*this->bullets_ptr_).size());
+      for(Bullet &bullet : (*this->bullets_ptr_)){
         temp.push_back(bullet.GetHitBox());
       }
       return temp;
     }
 
     void DeleteBullet(unsigned int i){
-      (*this->bullets_).erase((*this->bullets_).begin() + i);
+      (*this->bullets_ptr_).erase((*this->bullets_ptr_).begin() + i);
     }
 };
 
@@ -163,12 +163,13 @@ class BulletMagazine{
           pos_y
       );
       this->bullets_.push_back(*new_bullet);
+      delete new_bullet;
     }
     void ClearBullets(){
       unsigned i = 0;
       unsigned deleted = -1;
       for(Bullet &bullet : this->bullets_){
-        if(bullet.GetPosition().y < 0 - Bullet::bullet_height_ || !bullet.active){
+        if(bullet.GetPosition().y < 0 - Bullet::bullet_height_ || !bullet.GetActive()){
           //std::cout << "Will delete at " << bullet.GetPosition().y << "\n";
           std::cout << "cap" << this->bullets_.capacity() << " size:" << this->bullets_.size() << "\n";
           deleted = i;
@@ -187,9 +188,9 @@ class BulletMagazine{
 class Player: protected Movable{    // todo Inherit from sprite?
   private:
     sf::Sprite sprite_;
-    const int player_height_ = 150; // Pixels
-    const float speed_ = 0.625;      // pixels / millisecond
-    const int fire_cooldown = 300;
+    static constexpr int player_height_ = 150; // Pixels
+    static constexpr float speed_ = 0.625;      // pixels / millisecond
+    static constexpr int fire_cooldown = 300;
     int remaining_fire_cooldown = fire_cooldown; 
     BulletMagazine magazine_;
   public:
@@ -249,14 +250,14 @@ class Alien: protected Movable{
   private: 
     sf::Sprite sprite_;
     //const int alien_width_ = 100;        // Pixels
-    const float speed_ = 0.3125;           // Pixels / millisecond
+    static constexpr float speed_ = 0.3125;           // Pixels / millisecond
     int soldier_num;
     sf::FloatRect hitbox_;
-    const float hitbox_x_margin_percentage_ = 0.25;
-    const float hitbox_y_margin_percentage_ = 0.35;
+    static constexpr float hitbox_x_margin_percentage_ = 0.25;
+    static constexpr float hitbox_y_margin_percentage_ = 0.35;
     bool active_ = true;
   public:
-    static const int alien_width_;
+    static constexpr int alien_width_ = 100;
     Alien(sf::Texture *alien_texture, int soldier_num, int formation_col, int formation_row, int screen_margin, int row_margin, int col_margin){
       this->sprite_.setTexture(*alien_texture);
       this->sprite_.setOrigin(this->sprite_.getLocalBounds().width/2, this->sprite_.getLocalBounds().height/2);
@@ -301,24 +302,26 @@ class Alien: protected Movable{
       return this->sprite_.getTransform().transformRect(this->hitbox_);
     }
 
+    bool GetActive() const {
+      return this->active_;
+    }
     void Dead(){
       this->active_ = false;
     }
 };
-constexpr int Alien::alien_width_ = 100;
 
 class AlienCovenant: protected Movable{
   private:
-    std::vector<Alien*> covenant_;
+    std::vector<Alien> covenant_;
     Movable::Direction movement_loop[8];  
     int current_direction; 
-    const int stall_duration = 1200;  // Milliseconds
-    const int movement_duration = 200;        // Milliseconds
+    static constexpr int stall_duration = 1200;  // Milliseconds
+    static constexpr int movement_duration = 200;        // Milliseconds
     float elapsed_stall = 0;
     float elapsed_movement = 0;
-    const int row_margin_ = 15;  // pixels
-    const int col_margin_ = 15;
-    const int screen_margin_ = 10;
+    static constexpr int row_margin_ = 15;  // pixels
+    static constexpr int col_margin_ = 15;
+    static constexpr int screen_margin_ = 10;
     int aliens_per_row_;
   protected:
     Movable::Direction GetCurrentDirection(){
@@ -347,19 +350,22 @@ class AlienCovenant: protected Movable{
       for(int i = 0; i<num_aliens; ++i){
         int formation_col = i%this->aliens_per_row_;
         int formation_row = i/this->aliens_per_row_;
-        this->covenant_.push_back(
-          new Alien(alien_texture, i, formation_col, formation_row, this->screen_margin_, this->row_margin_, this->col_margin_)
-        );
+        Alien *new_alien = new Alien(alien_texture, i, formation_col, formation_row, this->screen_margin_, this->row_margin_, this->col_margin_);
+        this->covenant_.push_back(*new_alien);
+        delete new_alien;
       }
     }
+    /*
     ~AlienCovenant(){
       for(Alien *alien : this->covenant_){
         delete alien;
         alien = nullptr;
       }
     }
+    */
 
     void Update(sf::RenderWindow &window, int elapsed, PublicAccessEnemyMagazine *player_magazine){
+      //std::cout << "cap" << this->covenant_.capacity() << " size:" << this->covenant_.size() << "\n";
       elapsed_stall += elapsed;
       if(elapsed_stall > stall_duration){
         elapsed_movement += elapsed;
@@ -370,16 +376,16 @@ class AlienCovenant: protected Movable{
           this->UpdateDirection();
         }
       }
-      for(Alien *soldier : this->covenant_){
+      for(Alien &soldier : this->covenant_){
         // movement here check to avoid double covenant range-base loop
         if(elapsed_movement > 0 && elapsed_movement <= movement_duration){
-          soldier->Move(AlienCovenant::GetCurrentDirection(), elapsed);
+          soldier.Move(AlienCovenant::GetCurrentDirection(), elapsed);
         }
         unsigned int i = 0;
         for(sf::FloatRect bullet_hitbox : (*player_magazine).GetBulletsHitBoxes()){
-          if(soldier->GetHitBox().intersects(bullet_hitbox)){
+          if(soldier.GetHitBox().intersects(bullet_hitbox)){
             std::cout << "PWND\n";
-            soldier->Dead();
+            soldier.Dead();
             (*player_magazine).DeleteBullet(i);
           }
           ++i;
@@ -391,8 +397,14 @@ class AlienCovenant: protected Movable{
         rectangle.setFillColor(sf::Color::Red);
         window.draw(rectangle);
         */
-        soldier->Draw(window);
+        soldier.Draw(window);
       }
+    }
+    void ClearAliens(){
+      auto end = std::remove_if(covenant_.begin(), covenant_.end(), 
+          [](const Alien &alien){return alien.GetActive() == false;}
+          );  
+      covenant_.erase(end, covenant_.end());
     }
 };
 
@@ -419,7 +431,7 @@ int main(){
   }
 
   Player player(textures->GetPlayer(), screen_width, screen_height, textures->GetRocket());
-  AlienCovenant covenant = AlienCovenant(1, textures->GetAlien(), screen_width);
+  AlienCovenant covenant = AlienCovenant(28, textures->GetAlien(), screen_width);
   //////
   sf::Clock clock;
   while(window.isOpen()){
@@ -445,6 +457,7 @@ int main(){
       // todo check if performant and good practice
       // Do performance tasks
       player.ClearBullets();
+      covenant.ClearAliens();
     }
   }
   
