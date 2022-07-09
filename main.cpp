@@ -80,18 +80,18 @@ class Movable{
     }
 };
 
-class Bullet: protected Movable{
+class Projectile: protected Movable{
   private:
     sf::Sprite sprite_;
     sf::FloatRect hitbox_;
     bool active_ = true;
   public:
     static constexpr float speed_ = 0.6;
-    static constexpr int bullet_height_ = 40; // pixels /milliseconds
-    Bullet(sf::Texture& texture, float pos_x, float pos_y){
+    static constexpr int projectile_height_ = 40; // pixels /milliseconds
+    Projectile(sf::Texture& texture, float pos_x, float pos_y){
       this->sprite_.setTexture(texture);
       this->sprite_.setOrigin(this->sprite_.getLocalBounds().width/2, this->sprite_.getLocalBounds().height/2);
-      float scale = GetScale(this->sprite_.getGlobalBounds().height, this->bullet_height_);
+      float scale = GetScale(this->sprite_.getGlobalBounds().height, this->projectile_height_);
       this->sprite_.setScale(scale, scale);
       this->sprite_.setPosition(pos_x, pos_y);
       this->hitbox_ = {0.f,0.f, this->sprite_.getLocalBounds().width, this->sprite_.getLocalBounds().height};
@@ -120,52 +120,52 @@ class Bullet: protected Movable{
 
 class PublicAccessMagazine{  
   private: 
-    std::vector<Bullet>* bullets_ptr_;
+    std::vector<Projectile>* projectiles_ptr_;
   public:
-    void SetBulletsPointer(std::vector<Bullet> *p){
-      this->bullets_ptr_ = p;
+    void SetProjectilesPointer(std::vector<Projectile> *p){
+      this->projectiles_ptr_ = p;
     }
-    std::vector<sf::FloatRect> GetBulletsHitBoxes(){
+    std::vector<sf::FloatRect> GetProjectilesHitBoxes(){
       std::vector<sf::FloatRect> temp;
-      temp.reserve((*this->bullets_ptr_).size());
-      for(Bullet &bullet : (*this->bullets_ptr_)){
-        temp.push_back(bullet.GetHitBox());
+      temp.reserve((*this->projectiles_ptr_).size());
+      for(Projectile &projectile : (*this->projectiles_ptr_)){
+        temp.push_back(projectile.GetHitBox());
       }
       return temp;
     }
 
-    void DeleteBullet(unsigned int i){
-      (*this->bullets_ptr_).erase((*this->bullets_ptr_).begin() + i);
+    void DeleteProjectile(unsigned int i){
+      (*this->projectiles_ptr_).erase((*this->projectiles_ptr_).begin() + i);
     }
 };
 
-class BulletMagazine{
+class ProjectileMagazine{
   private:
-    sf::Texture *bullet_texture_;
-    std::vector<Bullet> bullets_;
+    sf::Texture *projectile_texture_;
+    std::vector<Projectile> projectiles_;
     PublicAccessMagazine public_magazine_;
     bool friendly_;    // todo adapt friendly here
   public:
-    BulletMagazine(bool friendly, unsigned int screen_height, const int fire_cooldown, sf::Texture *bullet_texture){
-      this->bullet_texture_ = bullet_texture;
+    ProjectileMagazine(bool friendly, unsigned int screen_height, const int fire_cooldown, sf::Texture *projectile_texture){
+      this->projectile_texture_ = projectile_texture;
       this->friendly_ = friendly;
       
       // This section only applies to player bullets
       if(friendly){
         // Calc the maximum amount of bullets based on screen size, bullet speed and fire cooldown
-        this->bullets_.reserve((screen_height/Bullet::speed_)/fire_cooldown);
+        this->projectiles_.reserve((screen_height/Projectile::speed_)/fire_cooldown);
       }else{
-        this->bullets_.reserve(20);
+        this->projectiles_.reserve(20);
       }
-      public_magazine_.SetBulletsPointer(&this->bullets_);
+      public_magazine_.SetProjectilesPointer(&this->projectiles_);
     }
     void Update(sf::RenderWindow &window, int elapsed){
-      for(Bullet &bullet : this->bullets_){
-        bullet.Update(window, elapsed, this->friendly_);
+      for(Projectile &projectile : this->projectiles_){
+        projectile.Update(window, elapsed, this->friendly_);
         /* Debug
         sf::RectangleShape rectangle;
-        rectangle.setPosition(bullet->GetHitBox().left, bullet->GetHitBox().top);
-        rectangle.setSize(sf::Vector2f(bullet->GetHitBox().width, bullet->GetHitBox().height));
+        rectangle.setPosition(projectile->GetHitBox().left, projectile->GetHitBox().top);
+        rectangle.setSize(sf::Vector2f(projectile->GetHitBox().width, projectile->GetHitBox().height));
         rectangle.setFillColor(sf::Color::Transparent);
         rectangle.setOutlineColor(sf::Color::Red);
         rectangle.setOutlineThickness(3.f);
@@ -174,28 +174,28 @@ class BulletMagazine{
         */
       }
     }
-    void AddBullet(float pos_x, float pos_y){
-      Bullet *new_bullet = new Bullet(
-          *(this->bullet_texture_),
+    void AddProjectile(float pos_x, float pos_y){
+      Projectile *new_projectile = new Projectile(
+          *(this->projectile_texture_),
           pos_x,
           pos_y
       );
-      this->bullets_.push_back(*new_bullet);
-      delete new_bullet;
+      this->projectiles_.push_back(*new_projectile);
+      delete new_projectile;
     }
-    void ClearBullets(){
+    void ClearProjectiles(){
       unsigned i = 0;
       unsigned deleted = -1;
-      for(Bullet &bullet : this->bullets_){
-        if(bullet.GetPosition().y < 0 - Bullet::bullet_height_ || !bullet.GetActiveStatus()){
-          //std::cout << "Will delete at " << bullet.GetPosition().y << "\n";
-          std::cout << "cap" << this->bullets_.capacity() << " size:" << this->bullets_.size() << "\n";
+      for(Projectile &projectile : this->projectiles_){
+        if(projectile.GetPosition().y < 0 - Projectile::projectile_height_ || !projectile.GetActiveStatus()){
+          //std::cout << "Will delete at " << projectile.GetPosition().y << "\n";
+          std::cout << "cap" << this->projectiles_.capacity() << " size:" << this->projectiles_.size() << "\n";
           deleted = i;
         }
         ++i;
       }
       if(deleted != -1){
-        this->bullets_.erase(this->bullets_.begin()+deleted);
+        this->projectiles_.erase(this->projectiles_.begin()+deleted);
       }
     }
     PublicAccessMagazine* GetPlayerMagazine(){
@@ -210,7 +210,7 @@ class Player: protected Movable{    // todo Inherit from sprite?
     static constexpr float speed_ = 0.625;      // pixels / millisecond
     static constexpr int fire_cooldown = 300;
     int remaining_fire_cooldown = fire_cooldown; 
-    BulletMagazine magazine_;
+    ProjectileMagazine magazine_;
   public:
     Player(
         sf::Texture *player_texture, 
@@ -246,7 +246,7 @@ class Player: protected Movable{    // todo Inherit from sprite?
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::Space)){
         if(this->remaining_fire_cooldown == 0){
-          this->magazine_.AddBullet(this->sprite_.getPosition().x, this->sprite_.getGlobalBounds().top);
+          this->magazine_.AddProjectile(this->sprite_.getPosition().x, this->sprite_.getGlobalBounds().top);
           this->remaining_fire_cooldown = this->fire_cooldown;
         }
       }
@@ -255,8 +255,8 @@ class Player: protected Movable{    // todo Inherit from sprite?
       window.draw(this->sprite_);
     }
 
-    void ClearBullets(){
-      this->magazine_.ClearBullets();
+    void ClearProjectiles(){
+      this->magazine_.ClearProjectiles();
     }
     
     PublicAccessMagazine* GetPlayerMagazine(){
@@ -342,7 +342,7 @@ class AlienCovenant: protected Movable{
     static constexpr int col_margin_ = 15;
     static constexpr int screen_margin_ = 10;
     int aliens_per_row_;
-    BulletMagazine magazine_;
+    ProjectileMagazine magazine_;
   protected:
     Movable::Direction GetCurrentDirection(){
       return movement_loop[this->current_direction];
@@ -402,11 +402,11 @@ class AlienCovenant: protected Movable{
           soldier.Move(AlienCovenant::GetCurrentDirection(), elapsed);
         }
         unsigned int i = 0;
-        for(sf::FloatRect bullet_hitbox : (*player_magazine).GetBulletsHitBoxes()){
+        for(sf::FloatRect bullet_hitbox : (*player_magazine).GetProjectilesHitBoxes()){
           if(soldier.GetHitBox().intersects(bullet_hitbox)){
             std::cout << "PWND\n";
             soldier.Dead();
-            (*player_magazine).DeleteBullet(i);
+            (*player_magazine).DeleteProjectile(i);
           }
           ++i;
         }
@@ -477,7 +477,7 @@ int main(){
     }else{
       // todo check if performant and good practice
       // Do performance tasks
-      player.ClearBullets();
+      player.ClearProjectiles();
       covenant.ClearAliens();
     }
   }
