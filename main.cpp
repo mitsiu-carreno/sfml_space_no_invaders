@@ -21,6 +21,7 @@ class Texture{
     sf::Texture player_;
     sf::Texture alien_;
     sf::Texture rocket_;
+    sf::Texture laser_;
   public:
     Texture(){
       // Codes: Portal, spiderman/ironman, game mechanic elites desapear on stall
@@ -33,6 +34,9 @@ class Texture{
       if(!this->rocket_.loadFromFile("resources/rocket.png")){
         throw "Unable to load rocket texture";
       }
+      if(!this->laser_.loadFromFile("resources/laser.png")){
+        throw "Unable to load laser texture";
+      }
     }
     sf::Texture* GetPlayer(){
       return &this->player_;
@@ -42,6 +46,9 @@ class Texture{
     }
     sf::Texture* GetRocket(){
       return &this->rocket_;
+    }
+    sf::Texture* GetLaser(){
+      return &this->laser_;
     }
 };
 
@@ -76,13 +83,12 @@ class Movable{
 class Bullet: protected Movable{
   private:
     sf::Sprite sprite_;
-    bool friendy;
     sf::FloatRect hitbox_;
     bool active_ = true;
   public:
     static constexpr float speed_ = 0.6;
     static constexpr int bullet_height_ = 40; // pixels /milliseconds
-    Bullet(bool friendly, sf::Texture& texture, float pos_x, float pos_y){
+    Bullet(sf::Texture& texture, float pos_x, float pos_y){
       this->sprite_.setTexture(texture);
       this->sprite_.setOrigin(this->sprite_.getLocalBounds().width/2, this->sprite_.getLocalBounds().height/2);
       float scale = GetScale(this->sprite_.getGlobalBounds().height, this->bullet_height_);
@@ -90,8 +96,14 @@ class Bullet: protected Movable{
       this->sprite_.setPosition(pos_x, pos_y);
       this->hitbox_ = {0.f,0.f, this->sprite_.getLocalBounds().width, this->sprite_.getLocalBounds().height};
     }
-    void Update(sf::RenderWindow &window, int elapsed){
-      Movable::Move(this->sprite_, Movable::Direction::kUp, elapsed * this->speed_);
+    void Update(sf::RenderWindow &window, int elapsed, bool friendly){
+      Movable::Direction direction;
+      if(friendly){
+        direction = Movable::Direction::kUp;
+      }else{
+        direction = Movable::Direction::kDown;
+      }
+      Movable::Move(this->sprite_, direction, elapsed * this->speed_);
       window.draw(this->sprite_);
     }
     sf::Vector2f GetPosition(){
@@ -106,7 +118,7 @@ class Bullet: protected Movable{
     }
 };
 
-class PublicAccessEnemyMagazine{  
+class PublicAccessMagazine{  
   private: 
     std::vector<Bullet>* bullets_ptr_;
   public:
@@ -131,18 +143,25 @@ class BulletMagazine{
   private:
     sf::Texture *bullet_texture_;
     std::vector<Bullet> bullets_;
-    PublicAccessEnemyMagazine player_magazine_;
-    bool friendly;    // todo adapt friendly here
+    PublicAccessMagazine public_magazine_;
+    bool friendly_;    // todo adapt friendly here
   public:
-    BulletMagazine(unsigned int screen_height, const int fire_cooldown, sf::Texture *bullet_texture){
+    BulletMagazine(bool friendly, unsigned int screen_height, const int fire_cooldown, sf::Texture *bullet_texture){
       this->bullet_texture_ = bullet_texture;
-      // Calc the maximum amount of bullets based on screen size, bullet speed and fire cooldown
-      this->bullets_.reserve((screen_height/Bullet::speed_)/fire_cooldown);
-      player_magazine_.SetBulletsPointer(&this->bullets_);
+      this->friendly_ = friendly;
+      
+      // This section only applies to player bullets
+      if(friendly){
+        // Calc the maximum amount of bullets based on screen size, bullet speed and fire cooldown
+        this->bullets_.reserve((screen_height/Bullet::speed_)/fire_cooldown);
+      }else{
+        this->bullets_.reserve(20);
+      }
+      public_magazine_.SetBulletsPointer(&this->bullets_);
     }
     void Update(sf::RenderWindow &window, int elapsed){
       for(Bullet &bullet : this->bullets_){
-        bullet.Update(window, elapsed);
+        bullet.Update(window, elapsed, this->friendly_);
         /* Debug
         sf::RectangleShape rectangle;
         rectangle.setPosition(bullet->GetHitBox().left, bullet->GetHitBox().top);
@@ -155,9 +174,8 @@ class BulletMagazine{
         */
       }
     }
-    void AddBullet(int friendly, float pos_x, float pos_y){
+    void AddBullet(float pos_x, float pos_y){
       Bullet *new_bullet = new Bullet(
-          friendly, 
           *(this->bullet_texture_),
           pos_x,
           pos_y
@@ -180,8 +198,8 @@ class BulletMagazine{
         this->bullets_.erase(this->bullets_.begin()+deleted);
       }
     }
-    PublicAccessEnemyMagazine* GetPlayerMagazine(){
-      return &(this->player_magazine_);
+    PublicAccessMagazine* GetPlayerMagazine(){
+      return &(this->public_magazine_);
     }
 };
 
@@ -200,6 +218,7 @@ class Player: protected Movable{    // todo Inherit from sprite?
         unsigned int screen_height, 
         sf::Texture *bullet_texture
     ):magazine_(
+        true,
         screen_height, 
         this->fire_cooldown, 
         bullet_texture
@@ -227,7 +246,7 @@ class Player: protected Movable{    // todo Inherit from sprite?
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::Space)){
         if(this->remaining_fire_cooldown == 0){
-          this->magazine_.AddBullet(true, this->sprite_.getPosition().x, this->sprite_.getGlobalBounds().top);
+          this->magazine_.AddBullet(this->sprite_.getPosition().x, this->sprite_.getGlobalBounds().top);
           this->remaining_fire_cooldown = this->fire_cooldown;
         }
       }
@@ -240,7 +259,7 @@ class Player: protected Movable{    // todo Inherit from sprite?
       this->magazine_.ClearBullets();
     }
     
-    PublicAccessEnemyMagazine* GetPlayerMagazine(){
+    PublicAccessMagazine* GetPlayerMagazine(){
       return this->magazine_.GetPlayerMagazine();
     }
     
@@ -323,6 +342,7 @@ class AlienCovenant: protected Movable{
     static constexpr int col_margin_ = 15;
     static constexpr int screen_margin_ = 10;
     int aliens_per_row_;
+    BulletMagazine magazine_;
   protected:
     Movable::Direction GetCurrentDirection(){
       return movement_loop[this->current_direction];
@@ -331,7 +351,7 @@ class AlienCovenant: protected Movable{
       this->current_direction = (this->current_direction+1) % 8;    // todo NOT hardcoded
     }
   public:
-    AlienCovenant(char num_aliens, sf::Texture *alien_texture, const unsigned int &screen_width){
+    AlienCovenant(char num_aliens, sf::Texture *alien_texture, const unsigned int &screen_width, const unsigned int &screen_height, sf::Texture *laser_texture):magazine_(false, screen_height, 200, laser_texture){
       this->movement_loop[0] = Movable::Direction::kRight;
       this->movement_loop[1] = Movable::Direction::kDown;
       this->movement_loop[2] = Movable::Direction::kLeft;
@@ -364,7 +384,7 @@ class AlienCovenant: protected Movable{
     }
     */
 
-    void Update(sf::RenderWindow &window, int elapsed, PublicAccessEnemyMagazine *player_magazine){
+    void Update(sf::RenderWindow &window, int elapsed, PublicAccessMagazine *player_magazine){
       //std::cout << "cap" << this->covenant_.capacity() << " size:" << this->covenant_.size() << "\n";
       elapsed_stall += elapsed;
       if(elapsed_stall > stall_duration){
@@ -431,7 +451,7 @@ int main(){
   }
 
   Player player(textures->GetPlayer(), screen_width, screen_height, textures->GetRocket());
-  AlienCovenant covenant = AlienCovenant(28, textures->GetAlien(), screen_width);
+  AlienCovenant covenant = AlienCovenant(28, textures->GetAlien(), screen_width, screen_height, textures->GetLaser());
   //////
   sf::Clock clock;
   while(window.isOpen()){
@@ -449,6 +469,7 @@ int main(){
       clock.restart();
       window.clear(sf::Color(142,142,142));
    
+      //player.Update(window, elapsed.asMilliseconds(), covenant.GetCovenantMagazine()); 
       player.Update(window, elapsed.asMilliseconds()); 
       covenant.Update(window, elapsed.asMilliseconds(), player.GetPlayerMagazine());
 
