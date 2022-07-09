@@ -3,11 +3,19 @@
 #include <iostream>
 #include <algorithm>    // std::remove_if
 #include <vector>
+#include <stdlib.h>     // srand rand
+#include <time.h>       // time
 // todo vector reserve everywhere
 // todo shoot back!
 
 float GetScale(float initial_measure, float target_measure){
   return target_measure/initial_measure;
+}
+
+int GetPseudoRandom(int min, int max){
+  // Really basic no need for overcomplicated solutions 
+  // just want to pseudo random fire from aliens
+  return std::rand() % max;
 }
 
 namespace constants{
@@ -264,12 +272,12 @@ class Player: protected Movable{    // todo Inherit from sprite?
 
       /*
        */
-
         sf::RectangleShape rectangle;
         rectangle.setPosition(this->GetHitBox().left, this->GetHitBox().top);
         rectangle.setSize(sf::Vector2f(this->GetHitBox().width, this->GetHitBox().height));
         rectangle.setFillColor(sf::Color::Blue);
         window.draw(rectangle);
+
       window.draw(this->sprite_);
     }
     sf::FloatRect GetHitBox(){
@@ -296,6 +304,9 @@ class Alien: protected Movable{
     static constexpr float hitbox_x_margin_percentage_ = 0.25;
     static constexpr float hitbox_y_margin_percentage_ = 0.35;
     bool active_ = true;
+    int fire_cooldown_;
+    static constexpr int min_fire_cooldown_ = 4000;
+    static constexpr int max_fire_cooldown_ = 8000;
   public:
     static constexpr int alien_width_ = 100;
     Alien(sf::Texture *alien_texture, int soldier_num, int formation_col, int formation_row, int screen_margin, int row_margin, int col_margin){
@@ -319,6 +330,7 @@ class Alien: protected Movable{
           )  * formation_row
       );
       //this->sprite_.setColor(sf::Color::Red);
+      this->fire_cooldown_ = GetPseudoRandom(this->min_fire_cooldown_, this->max_fire_cooldown_);
 
       // Create hitbox
       float sprite_width = this->sprite_.getLocalBounds().width;
@@ -347,6 +359,19 @@ class Alien: protected Movable{
     }
     void Dead(){
       this->active_ = false;
+    }
+
+    bool UpdateFireCooldown(int elapsed){
+      this->fire_cooldown_ -= elapsed;
+      if(this->fire_cooldown_ < 0){
+        this->fire_cooldown_ = GetPseudoRandom(this->min_fire_cooldown_, this->max_fire_cooldown_);
+        return true;
+      }
+      return false;
+    }
+
+    sf::Vector2f GetPosition(){
+      return this->sprite_.getPosition();
     }
 };
 
@@ -429,6 +454,10 @@ class AlienCovenant: protected Movable{
         }
       }
       for(Alien &soldier : this->covenant_){
+        if(soldier.UpdateFireCooldown(elapsed)){
+          sf::Vector2f coords = soldier.GetPosition();
+          this->laser_magazine_.AddProjectile(coords.x, coords.y);
+        }
         // movement here check to avoid double covenant range-base loop
         if(elapsed_movement > 0 && elapsed_movement <= movement_duration){
           soldier.Move(AlienCovenant::GetCurrentDirection(), elapsed);
@@ -472,6 +501,7 @@ class AlienCovenant: protected Movable{
 };
 
 int main(){
+  std::srand(std::time(0));
   // todo check if real improvement
   std::vector<sf::VideoMode> * modes = new std::vector<sf::VideoMode>{sf::VideoMode::getFullscreenModes()};
   //const unsigned int screen_width = 800;
@@ -510,7 +540,7 @@ int main(){
     sf::Time elapsed = clock.getElapsedTime();
     if(elapsed.asMilliseconds() >= constants::kFrameDuration){
       clock.restart();
-      window.clear(sf::Color(142,142,142));
+      window.clear(sf::Color(30,30,30));
    
       player.Update(window, elapsed.asMilliseconds(), covenant.GetCovenantMagazine()); 
       //player.Update(window, elapsed.asMilliseconds()); 
