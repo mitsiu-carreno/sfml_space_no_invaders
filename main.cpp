@@ -101,7 +101,7 @@ class Bullet: protected Movable{
     sf::FloatRect GetHitBox(){
       return this->sprite_.getTransform().transformRect(this->hitbox_);
     }
-    bool GetActive(){
+    bool GetActiveStatus(){
       return this->active_;
     }
 };
@@ -169,7 +169,7 @@ class BulletMagazine{
       unsigned i = 0;
       unsigned deleted = -1;
       for(Bullet &bullet : this->bullets_){
-        if(bullet.GetPosition().y < 0 - Bullet::bullet_height_ || !bullet.GetActive()){
+        if(bullet.GetPosition().y < 0 - Bullet::bullet_height_ || !bullet.GetActiveStatus()){
           //std::cout << "Will delete at " << bullet.GetPosition().y << "\n";
           std::cout << "cap" << this->bullets_.capacity() << " size:" << this->bullets_.size() << "\n";
           deleted = i;
@@ -302,7 +302,7 @@ class Alien: protected Movable{
       return this->sprite_.getTransform().transformRect(this->hitbox_);
     }
 
-    bool GetActive() const {
+    bool GetActiveStatus() const {
       return this->active_;
     }
     void Dead(){
@@ -402,7 +402,7 @@ class AlienCovenant: protected Movable{
     }
     void ClearAliens(){
       auto end = std::remove_if(covenant_.begin(), covenant_.end(), 
-          [](const Alien &alien){return alien.GetActive() == false;}
+          [](const Alien &alien){return alien.GetActiveStatus() == false;}
           );  
       covenant_.erase(end, covenant_.end());
     }
