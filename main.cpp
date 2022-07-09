@@ -183,7 +183,7 @@ class ProjectileMagazine{
       this->projectiles_.push_back(*new_projectile);
       delete new_projectile;
     }
-    void ClearProjectiles(){
+    void ClearProjectiles(){  // todo Restructure with lambdas
       unsigned i = 0;
       unsigned deleted = -1;
       for(Projectile &projectile : this->projectiles_){
@@ -198,7 +198,7 @@ class ProjectileMagazine{
         this->projectiles_.erase(this->projectiles_.begin()+deleted);
       }
     }
-    PublicAccessMagazine* GetPlayerMagazine(){
+    PublicAccessMagazine* GetMagazine(){
       return &(this->public_magazine_);
     }
 };
@@ -210,14 +210,15 @@ class Player: protected Movable{    // todo Inherit from sprite?
     static constexpr float speed_ = 0.625;      // pixels / millisecond
     static constexpr int fire_cooldown = 300;
     int remaining_fire_cooldown = fire_cooldown; 
-    ProjectileMagazine magazine_;
+    ProjectileMagazine bullet_magazine_;
+    sf::FloatRect hitbox_;
   public:
     Player(
         sf::Texture *player_texture, 
         unsigned int screen_width, 
         unsigned int screen_height, 
         sf::Texture *bullet_texture
-    ):magazine_(
+    ):bullet_magazine_(
         true,
         screen_height, 
         this->fire_cooldown, 
@@ -229,9 +230,11 @@ class Player: protected Movable{    // todo Inherit from sprite?
       this->sprite_.setScale(scale, scale); 
       this->sprite_.setPosition(screen_width*0.5, screen_height*0.7);
       this->sprite_.setColor(sf::Color::Red);
+
+      this->hitbox_ = this->sprite_.getLocalBounds();
     }
 
-    void Update(sf::RenderWindow &window, int elapsed){
+    void Update(sf::RenderWindow &window, int elapsed, PublicAccessMagazine *covenant_magazine){
       // Lock minimum value to 0
       this->remaining_fire_cooldown = (this->remaining_fire_cooldown < 0)? 0 : this->remaining_fire_cooldown - elapsed; 
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::Left)){
@@ -246,21 +249,39 @@ class Player: protected Movable{    // todo Inherit from sprite?
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::Space)){
         if(this->remaining_fire_cooldown == 0){
-          this->magazine_.AddProjectile(this->sprite_.getPosition().x, this->sprite_.getGlobalBounds().top);
+          this->bullet_magazine_.AddProjectile(this->sprite_.getPosition().x, this->sprite_.getGlobalBounds().top);
           this->remaining_fire_cooldown = this->fire_cooldown;
         }
       }
 
-      this->magazine_.Update(window, elapsed); 
+      this->bullet_magazine_.Update(window, elapsed); 
+      for(sf::FloatRect laser_hitbox : (*covenant_magazine).GetProjectilesHitBoxes()){
+        if(this->GetHitBox().intersects(laser_hitbox)){
+          std::cout << "PWND\n";
+        }
+        
+      }
+
+      /*
+       */
+
+        sf::RectangleShape rectangle;
+        rectangle.setPosition(this->GetHitBox().left, this->GetHitBox().top);
+        rectangle.setSize(sf::Vector2f(this->GetHitBox().width, this->GetHitBox().height));
+        rectangle.setFillColor(sf::Color::Blue);
+        window.draw(rectangle);
       window.draw(this->sprite_);
+    }
+    sf::FloatRect GetHitBox(){
+      return this->sprite_.getTransform().transformRect(this->hitbox_);
     }
 
     void ClearProjectiles(){
-      this->magazine_.ClearProjectiles();
+      this->bullet_magazine_.ClearProjectiles();
     }
     
     PublicAccessMagazine* GetPlayerMagazine(){
-      return this->magazine_.GetPlayerMagazine();
+      return this->bullet_magazine_.GetMagazine();
     }
     
 };
@@ -297,7 +318,7 @@ class Alien: protected Movable{
             + col_margin
           )  * formation_row
       );
-      this->sprite_.setColor(sf::Color::Red);
+      //this->sprite_.setColor(sf::Color::Red);
 
       // Create hitbox
       float sprite_width = this->sprite_.getLocalBounds().width;
@@ -342,7 +363,7 @@ class AlienCovenant: protected Movable{
     static constexpr int col_margin_ = 15;
     static constexpr int screen_margin_ = 10;
     int aliens_per_row_;
-    ProjectileMagazine magazine_;
+    ProjectileMagazine laser_magazine_;
   protected:
     Movable::Direction GetCurrentDirection(){
       return movement_loop[this->current_direction];
@@ -351,7 +372,18 @@ class AlienCovenant: protected Movable{
       this->current_direction = (this->current_direction+1) % 8;    // todo NOT hardcoded
     }
   public:
-    AlienCovenant(char num_aliens, sf::Texture *alien_texture, const unsigned int &screen_width, const unsigned int &screen_height, sf::Texture *laser_texture):magazine_(false, screen_height, 200, laser_texture){
+    AlienCovenant(
+        char num_aliens, 
+        sf::Texture *alien_texture, 
+        const unsigned int &screen_width, 
+        const unsigned int &screen_height, 
+        sf::Texture *laser_texture
+      ):laser_magazine_(
+        false, 
+        screen_height, 
+        200, 
+        laser_texture
+    ){
       this->movement_loop[0] = Movable::Direction::kRight;
       this->movement_loop[1] = Movable::Direction::kDown;
       this->movement_loop[2] = Movable::Direction::kLeft;
@@ -419,12 +451,23 @@ class AlienCovenant: protected Movable{
         */
         soldier.Draw(window);
       }
+      this->laser_magazine_.Update(window, elapsed);
     }
     void ClearAliens(){
       auto end = std::remove_if(covenant_.begin(), covenant_.end(), 
           [](const Alien &alien){return alien.GetActiveStatus() == false;}
           );  
       covenant_.erase(end, covenant_.end());
+    }
+    void AlienFire(){
+      this->laser_magazine_.AddProjectile(100,100);
+    }
+    void ClearProjectiles(){
+      this->laser_magazine_.ClearProjectiles();
+    }
+
+    PublicAccessMagazine* GetCovenantMagazine(){
+      return this->laser_magazine_.GetMagazine();
     }
 };
 
@@ -469,8 +512,8 @@ int main(){
       clock.restart();
       window.clear(sf::Color(142,142,142));
    
-      //player.Update(window, elapsed.asMilliseconds(), covenant.GetCovenantMagazine()); 
-      player.Update(window, elapsed.asMilliseconds()); 
+      player.Update(window, elapsed.asMilliseconds(), covenant.GetCovenantMagazine()); 
+      //player.Update(window, elapsed.asMilliseconds()); 
       covenant.Update(window, elapsed.asMilliseconds(), player.GetPlayerMagazine());
 
       window.display();
@@ -479,6 +522,7 @@ int main(){
       // Do performance tasks
       player.ClearProjectiles();
       covenant.ClearAliens();
+      covenant.ClearProjectiles();
     }
   }
   
