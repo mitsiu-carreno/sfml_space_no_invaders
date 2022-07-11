@@ -176,6 +176,7 @@ class ProjectileMagazine{
     PublicAccessMagazine public_magazine_;
     bool friendly_;
     unsigned int screen_height;
+    //int max_size=0;
   public:
     ProjectileMagazine(bool friendly, sf::Texture *projectile_texture, int max_projectiles, unsigned int screen_height){
       this->projectile_texture_ = projectile_texture;
@@ -210,8 +211,15 @@ class ProjectileMagazine{
       delete new_projectile;
     }
     void ClearProjectiles(){  
-          std::cout << "cap" << this->projectiles_.capacity() << " size:" << this->projectiles_.size() << "\n";
-      /*
+      // DEBUG
+      //std::cout << "cap" << this->projectiles_.capacity() << " size:" << this->projectiles_.size() << "\n";
+      /*  DEBUG
+          if(this->projectiles_.capacity() > this->max_size){
+            this->max_size = this->projectiles_.capacity();
+          }
+          std::cout << this->max_size << "\n";
+          */
+      /*  LEGACY
       unsigned i = 0;
       unsigned deleted = -1;
       for(Projectile &projectile : this->projectiles_){
