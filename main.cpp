@@ -245,6 +245,9 @@ class ProjectileMagazine{
       );
       this->projectiles_.erase(end, this->projectiles_.end());
     }
+    unsigned int GetMagazineSize(){
+      return this->projectiles_.size();
+    }
     PublicAccessMagazine* GetMagazine(){
       return &(this->public_magazine_);
     }
@@ -426,7 +429,7 @@ class AlienCovenant: protected Movable{
     static constexpr int row_margin_ = 15;  // pixels
     static constexpr int col_margin_ = 15;
     static constexpr int screen_margin_ = 10;
-    static constexpr int max_lasers_per_frame_ = 30;
+    static constexpr int max_lasers_per_frame_ = 20;
     int aliens_per_row_;
     ProjectileMagazine laser_magazine_;
   protected:
@@ -494,7 +497,7 @@ class AlienCovenant: protected Movable{
         }
       }
       for(Alien &soldier : this->covenant_){
-        if(soldier.UpdateFireCooldown(elapsed)){
+        if(soldier.UpdateFireCooldown(elapsed) && this->laser_magazine_.GetMagazineSize() < this->max_lasers_per_frame_){
           sf::Vector2f coords = soldier.GetPosition();
           this->laser_magazine_.AddProjectile(coords.x, coords.y);
         }
