@@ -88,10 +88,33 @@ class Movable{
     }
 };
 
-class Projectile: protected Movable{
+class Hitboxable{
+  protected:
+    sf::FloatRect hitbox_;
+    void SetHitbox(
+      const sf::Sprite &sprite,
+      float percentage_offset_x,
+      float percentage_offset_y,
+      float percentage_x,
+      float percentage_y
+    ){
+      float sprite_width = sprite.getLocalBounds().width;
+      float hitbox_width = sprite_width * percentage_x;
+      float hitbox_offset_x = sprite_width * percentage_offset_x;
+
+      float sprite_height = sprite.getLocalBounds().height;
+      float hitbox_height = sprite_height * percentage_y;
+      float hitbox_offset_y = sprite_width * percentage_offset_y;
+      this->hitbox_ = {hitbox_offset_x, hitbox_offset_y, hitbox_width, hitbox_height};
+    }
+    sf::FloatRect GetHitBox(const sf::Sprite &sprite){
+      return sprite.getTransform().transformRect(this->hitbox_);
+    }
+};
+
+class Projectile: protected Movable, protected Hitboxable{
   private:
     sf::Sprite sprite_;
-    sf::FloatRect hitbox_;
     bool active_ = true;
   public:
     static constexpr float speed_ = 0.6;
@@ -102,7 +125,7 @@ class Projectile: protected Movable{
       float scale = GetScale(this->sprite_.getGlobalBounds().height, this->projectile_height_);
       this->sprite_.setScale(scale, scale);
       this->sprite_.setPosition(pos_x, pos_y);
-      this->hitbox_ = {0.f,0.f, this->sprite_.getLocalBounds().width, this->sprite_.getLocalBounds().height};
+      this->SetHitbox(this->sprite_, 0, 0, 1, 1);
     }
     void Update(sf::RenderWindow &window, int elapsed, bool friendly){
       Movable::Direction direction;
@@ -171,15 +194,16 @@ class ProjectileMagazine{
       for(Projectile &projectile : this->projectiles_){
         projectile.Update(window, elapsed, this->friendly_);
         /* Debug
+           */
         sf::RectangleShape rectangle;
-        rectangle.setPosition(projectile->GetHitBox().left, projectile->GetHitBox().top);
-        rectangle.setSize(sf::Vector2f(projectile->GetHitBox().width, projectile->GetHitBox().height));
+        rectangle.setPosition(projectile.GetHitBox().left, projectile.GetHitBox().top);
+        rectangle.setSize(sf::Vector2f(projectile.GetHitBox().width, projectile.GetHitBox().height));
         rectangle.setFillColor(sf::Color::Transparent);
         rectangle.setOutlineColor(sf::Color::Red);
         rectangle.setOutlineThickness(3.f);
 
         window.draw(rectangle);
-        */
+        /**/
       }
     }
     void AddProjectile(float pos_x, float pos_y){
@@ -191,6 +215,7 @@ class ProjectileMagazine{
       this->projectiles_.push_back(*new_projectile);
       delete new_projectile;
     }
+    // todo ClearProjectiles AddProjectile PublicAccessMagazine in class and inherit?
     void ClearProjectiles(){  // todo Restructure with lambdas
       unsigned i = 0;
       unsigned deleted = -1;
@@ -211,7 +236,7 @@ class ProjectileMagazine{
     }
 };
 
-class Player: protected Movable{    // todo Inherit from sprite?
+class Player: protected Movable, protected Hitboxable{    // todo Inherit from sprite?
   private:
     sf::Sprite sprite_;
     static constexpr int player_height_ = 150; // Pixels
@@ -219,19 +244,17 @@ class Player: protected Movable{    // todo Inherit from sprite?
     static constexpr int fire_cooldown = 300;
     int remaining_fire_cooldown = fire_cooldown; 
     ProjectileMagazine bullet_magazine_;
-    sf::FloatRect hitbox_;
+    static constexpr float hitbox_x_margin_percentaje_ = 0.4;
   public:
     Player(
         sf::Texture *player_texture, 
         unsigned int screen_width, 
         unsigned int screen_height, 
         sf::Texture *bullet_texture
-    ):bullet_magazine_(
-        true,
-        screen_height, 
-        this->fire_cooldown, 
-        bullet_texture
-     ){
+    )
+      :
+        bullet_magazine_(true, screen_height, this->fire_cooldown, bullet_texture)
+    {
       this->sprite_.setTexture(*player_texture);
       this->sprite_.setOrigin(this->sprite_.getLocalBounds().width/2, this->sprite_.getLocalBounds().height/2);
       float scale = GetScale(this->sprite_.getGlobalBounds().height, this->player_height_);
@@ -239,7 +262,7 @@ class Player: protected Movable{    // todo Inherit from sprite?
       this->sprite_.setPosition(screen_width*0.5, screen_height*0.7);
       this->sprite_.setColor(sf::Color::Red);
 
-      this->hitbox_ = this->sprite_.getLocalBounds();
+      this->SetHitbox(this->sprite_, 0, 0, 1, 1);
     }
 
     void Update(sf::RenderWindow &window, int elapsed, PublicAccessMagazine *covenant_magazine){
@@ -294,19 +317,18 @@ class Player: protected Movable{    // todo Inherit from sprite?
     
 };
 
-class Alien: protected Movable{
+class Alien: protected Movable, protected Hitboxable{
   private: 
     sf::Sprite sprite_;
     //const int alien_width_ = 100;        // Pixels
     static constexpr float speed_ = 0.3125;           // Pixels / millisecond
     int soldier_num;
-    sf::FloatRect hitbox_;
     static constexpr float hitbox_x_margin_percentage_ = 0.25;
     static constexpr float hitbox_y_margin_percentage_ = 0.35;
     bool active_ = true;
     int fire_cooldown_;
-    static constexpr int min_fire_cooldown_ = 4000;
-    static constexpr int max_fire_cooldown_ = 8000;
+    static constexpr int min_fire_cooldown_ = 7000;
+    static constexpr int max_fire_cooldown_ = 12000;
   public:
     static constexpr int alien_width_ = 100;
     Alien(sf::Texture *alien_texture, int soldier_num, int formation_col, int formation_row, int screen_margin, int row_margin, int col_margin){
@@ -332,15 +354,13 @@ class Alien: protected Movable{
       //this->sprite_.setColor(sf::Color::Red);
       this->fire_cooldown_ = GetPseudoRandom(this->min_fire_cooldown_, this->max_fire_cooldown_);
 
-      // Create hitbox
-      float sprite_width = this->sprite_.getLocalBounds().width;
-      float hitbox_x_margin = sprite_width * hitbox_x_margin_percentage_;
-      float hitbox_width = sprite_width - (hitbox_x_margin * 2); 
-
-      float sprite_height = this->sprite_.getLocalBounds().height;
-      float hitbox_y_margin = sprite_height * hitbox_y_margin_percentage_;
-      float hitbox_height = sprite_height - (hitbox_y_margin * 2);
-      this->hitbox_ = {hitbox_x_margin, hitbox_y_margin, hitbox_width, hitbox_height};
+      this->SetHitbox(
+          this->sprite_, 
+          this->hitbox_x_margin_percentage_, 
+          this->hitbox_y_margin_percentage_, 
+          1-(this->hitbox_x_margin_percentage_*2), 
+          1-(this->hitbox_y_margin_percentage_*2)
+      );
     }
 
     void Move(Movable::Direction direction, int elapsed){
@@ -351,7 +371,7 @@ class Alien: protected Movable{
     }
 
     sf::FloatRect GetHitBox(){
-      return this->sprite_.getTransform().transformRect(this->hitbox_);
+      return Hitboxable::GetHitBox(this->sprite_);
     }
 
     bool GetActiveStatus() const {
@@ -471,13 +491,13 @@ class AlienCovenant: protected Movable{
           }
           ++i;
         }
-        /* Debug
+        /* Debug*/
         sf::RectangleShape rectangle;
-        rectangle.setPosition(soldier->GetHitBox().left, soldier->GetHitBox().top);
-        rectangle.setSize(sf::Vector2f(soldier->GetHitBox().width, soldier->GetHitBox().height));
+        rectangle.setPosition(soldier.GetHitBox().left, soldier.GetHitBox().top);
+        rectangle.setSize(sf::Vector2f(soldier.GetHitBox().width, soldier.GetHitBox().height));
         rectangle.setFillColor(sf::Color::Red);
         window.draw(rectangle);
-        */
+        /**/
         soldier.Draw(window);
       }
       this->laser_magazine_.Update(window, elapsed);
