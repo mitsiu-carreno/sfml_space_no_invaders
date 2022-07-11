@@ -36,7 +36,7 @@ class Texture{
       if(!this->player_.loadFromFile("resources/plane.png")){
         throw "Unable to load ship texture";
       }
-      if(!this->alien_.loadFromFile("resources/alien.png")){
+      if(!this->alien_.loadFromFile("resources/white-alien.png")){
         throw "Unable to load alien texture";
       }
       if(!this->rocket_.loadFromFile("resources/rocket.png")){
@@ -194,7 +194,6 @@ class ProjectileMagazine{
       for(Projectile &projectile : this->projectiles_){
         projectile.Update(window, elapsed, this->friendly_);
         /* Debug
-           */
         sf::RectangleShape rectangle;
         rectangle.setPosition(projectile.GetHitBox().left, projectile.GetHitBox().top);
         rectangle.setSize(sf::Vector2f(projectile.GetHitBox().width, projectile.GetHitBox().height));
@@ -203,7 +202,7 @@ class ProjectileMagazine{
         rectangle.setOutlineThickness(3.f);
 
         window.draw(rectangle);
-        /**/
+        */
       }
     }
     void AddProjectile(float pos_x, float pos_y){
@@ -260,7 +259,7 @@ class Player: protected Movable, protected Hitboxable{    // todo Inherit from s
       float scale = GetScale(this->sprite_.getGlobalBounds().height, this->player_height_);
       this->sprite_.setScale(scale, scale); 
       this->sprite_.setPosition(screen_width*0.5, screen_height*0.7);
-      this->sprite_.setColor(sf::Color::Red);
+      //this->sprite_.setColor(sf::Color::Red);
 
       this->SetHitbox(this->sprite_, 0, 0, 1, 1);
     }
@@ -321,7 +320,7 @@ class Alien: protected Movable, protected Hitboxable{
   private: 
     sf::Sprite sprite_;
     //const int alien_width_ = 100;        // Pixels
-    static constexpr float speed_ = 0.3125;           // Pixels / millisecond
+    static constexpr float speed_ = 0.3129;           // Pixels / millisecond
     int soldier_num;
     static constexpr float hitbox_x_margin_percentage_ = 0.25;
     static constexpr float hitbox_y_margin_percentage_ = 0.35;
@@ -351,7 +350,7 @@ class Alien: protected Movable, protected Hitboxable{
             + col_margin
           )  * formation_row
       );
-      //this->sprite_.setColor(sf::Color::Red);
+      this->sprite_.setColor(sf::Color::Red);
       this->fire_cooldown_ = GetPseudoRandom(this->min_fire_cooldown_, this->max_fire_cooldown_);
 
       this->SetHitbox(
@@ -400,7 +399,7 @@ class AlienCovenant: protected Movable{
     std::vector<Alien> covenant_;
     Movable::Direction movement_loop[8];  
     int current_direction; 
-    static constexpr int stall_duration = 1200;  // Milliseconds
+    static constexpr int stall_duration = 3000;  // Milliseconds
     static constexpr int movement_duration = 200;        // Milliseconds
     float elapsed_stall = 0;
     float elapsed_movement = 0;
@@ -491,13 +490,13 @@ class AlienCovenant: protected Movable{
           }
           ++i;
         }
-        /* Debug*/
+        /* Debug
         sf::RectangleShape rectangle;
         rectangle.setPosition(soldier.GetHitBox().left, soldier.GetHitBox().top);
         rectangle.setSize(sf::Vector2f(soldier.GetHitBox().width, soldier.GetHitBox().height));
         rectangle.setFillColor(sf::Color::Red);
         window.draw(rectangle);
-        /**/
+        */
         soldier.Draw(window);
       }
       this->laser_magazine_.Update(window, elapsed);
