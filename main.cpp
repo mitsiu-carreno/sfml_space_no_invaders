@@ -6,7 +6,6 @@
 #include <stdlib.h>     // srand rand
 #include <time.h>       // time
 // todo vector reserve everywhere
-// todo shoot back!
 
 float GetScale(float initial_measure, float target_measure){
   return target_measure/initial_measure;
@@ -137,14 +136,14 @@ class Projectile: protected Movable, protected Hitboxable{
       Movable::Move(this->sprite_, direction, elapsed * this->speed_);
       window.draw(this->sprite_);
     }
-    sf::Vector2f GetPosition(){
+    sf::Vector2f GetPosition() const {
       return this->sprite_.getPosition();
     }
 
     sf::FloatRect GetHitBox(){
       return this->sprite_.getTransform().transformRect(this->hitbox_);
     }
-    bool GetActiveStatus(){
+    bool GetActiveStatus() const {
       return this->active_;
     }
 };
@@ -175,19 +174,15 @@ class ProjectileMagazine{
     sf::Texture *projectile_texture_;
     std::vector<Projectile> projectiles_;
     PublicAccessMagazine public_magazine_;
-    bool friendly_;    // todo adapt friendly here
+    bool friendly_;
+    unsigned int screen_height;
   public:
-    ProjectileMagazine(bool friendly, unsigned int screen_height, const int fire_cooldown, sf::Texture *projectile_texture){
+    ProjectileMagazine(bool friendly, sf::Texture *projectile_texture, int max_projectiles, unsigned int screen_height){
       this->projectile_texture_ = projectile_texture;
       this->friendly_ = friendly;
-      
-      // This section only applies to player bullets
-      if(friendly){
-        // Calc the maximum amount of bullets based on screen size, bullet speed and fire cooldown
-        this->projectiles_.reserve((screen_height/Projectile::speed_)/fire_cooldown);
-      }else{
-        this->projectiles_.reserve(20);
-      }
+      this->screen_height = screen_height;
+
+      this->projectiles_.reserve(max_projectiles); 
       public_magazine_.SetProjectilesPointer(&this->projectiles_);
     }
     void Update(sf::RenderWindow &window, int elapsed){
@@ -214,8 +209,9 @@ class ProjectileMagazine{
       this->projectiles_.push_back(*new_projectile);
       delete new_projectile;
     }
-    // todo ClearProjectiles AddProjectile PublicAccessMagazine in class and inherit?
-    void ClearProjectiles(){  // todo Restructure with lambdas
+    void ClearProjectiles(){  
+          std::cout << "cap" << this->projectiles_.capacity() << " size:" << this->projectiles_.size() << "\n";
+      /*
       unsigned i = 0;
       unsigned deleted = -1;
       for(Projectile &projectile : this->projectiles_){
@@ -229,6 +225,17 @@ class ProjectileMagazine{
       if(deleted != -1){
         this->projectiles_.erase(this->projectiles_.begin()+deleted);
       }
+      */
+      auto end = std::remove_if(this->projectiles_.begin(), this->projectiles_.end(),
+          [this](const Projectile &projectile){
+            return (
+                projectile.GetPosition().y < 0 - Projectile::projectile_height_ 
+                || !projectile.GetActiveStatus()
+                || projectile.GetPosition().y > this->screen_height
+            );
+          }
+      );
+      this->projectiles_.erase(end, this->projectiles_.end());
     }
     PublicAccessMagazine* GetMagazine(){
       return &(this->public_magazine_);
@@ -252,7 +259,12 @@ class Player: protected Movable, protected Hitboxable{    // todo Inherit from s
         sf::Texture *bullet_texture
     )
       :
-        bullet_magazine_(true, screen_height, this->fire_cooldown, bullet_texture)
+        bullet_magazine_(
+            true, 
+            bullet_texture,
+            (screen_height/Projectile::speed_)/this->fire_cooldown,
+            screen_height
+        )
     {
       this->sprite_.setTexture(*player_texture);
       this->sprite_.setOrigin(this->sprite_.getLocalBounds().width/2, this->sprite_.getLocalBounds().height/2);
@@ -406,6 +418,7 @@ class AlienCovenant: protected Movable{
     static constexpr int row_margin_ = 15;  // pixels
     static constexpr int col_margin_ = 15;
     static constexpr int screen_margin_ = 10;
+    static constexpr int max_lasers_per_frame_ = 30;
     int aliens_per_row_;
     ProjectileMagazine laser_magazine_;
   protected:
@@ -424,9 +437,9 @@ class AlienCovenant: protected Movable{
         sf::Texture *laser_texture
       ):laser_magazine_(
         false, 
-        screen_height, 
-        200, 
-        laser_texture
+        laser_texture,
+        this->max_lasers_per_frame_,
+        screen_height
     ){
       this->movement_loop[0] = Movable::Direction::kRight;
       this->movement_loop[1] = Movable::Direction::kDown;
