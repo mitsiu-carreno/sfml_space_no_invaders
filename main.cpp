@@ -21,6 +21,7 @@ namespace constants{
   constexpr int kFrameRate = 60;  // Frames per second
   constexpr int kFrameDuration = 1000/kFrameRate;
   constexpr int kScreenMargins = 10;
+  constexpr int kMaxHitboxPerSprite = 3;
 }
 
 class Texture{
@@ -89,6 +90,61 @@ class Movable{
 
 class Hitboxable{
   protected:
+    std::vector<sf::FloatRect> hitboxes_;
+    std::vector<sf::FloatRect> hitboxes_transformed_;
+    Hitboxable(){
+      this->hitboxes_.reserve(constants::kMaxHitboxPerSprite);
+      this->hitboxes_transformed_.reserve(constants::kMaxHitboxPerSprite);
+    }
+    void SetHitboxes(
+      const sf::Sprite &sprite,
+      float percentage_offset_x,
+      float percentage_offset_y,
+      float percentage_x,
+      float percentage_y
+    ){
+      float sprite_width = sprite.getLocalBounds().width;
+      float hitbox_width = sprite_width * percentage_x;
+      float hitbox_offset_x = sprite_width * percentage_offset_x;
+
+      float sprite_height = sprite.getLocalBounds().height;
+      float hitbox_height = sprite_height * percentage_y;
+      float hitbox_offset_y = sprite_width * percentage_offset_y;
+      this->hitboxes_.push_back(
+          {hitbox_offset_x, hitbox_offset_y, hitbox_width, hitbox_height}
+      );
+      this->hitboxes_transformed_.resize(this->hitboxes_.size());
+    }
+    std::vector<sf::FloatRect>* GetAll(const sf::Sprite &sprite){
+      std::cout << "a size" << this->hitboxes_.size() << "\n";
+      std::cout << "b size" << this->hitboxes_transformed_.size() << "\n";
+      for(int i=0; i < this->hitboxes_.size(); ++i){
+        this->hitboxes_transformed_.at(i) = sprite.getTransform().transformRect(this->hitboxes_.at(i));
+      }
+      return &this->hitboxes_transformed_;
+    }
+    sf::FloatRect GetHitBoxes(const sf::Sprite &sprite){
+      if(this->hitboxes_.size() > 1){
+      return sprite.getTransform().transformRect(this->hitboxes_.at(0));
+      }
+      return sprite.getTransform().transformRect(this->hitboxes_.at(0));
+    }
+    bool CheckCollision(const sf::Sprite &sprite, sf::FloatRect &enemy_hitbox){
+      
+      for(sf::FloatRect &hitbox : this->hitboxes_){
+        sprite.getTransform().transformRect(hitbox);
+        //std::cout << "Player coords" << "\n" << hitbox.left << ","  << hitbox.top << "\n";
+        //std::cout << "Enemy coords" << "\n" << enemy_hitbox.left << ","  << enemy_hitbox.top << "\n";
+        if(hitbox.intersects(enemy_hitbox)){
+          return true;
+        }
+      }
+      return false;
+    }
+
+
+
+
     sf::FloatRect hitbox_;
     void SetHitbox(
       const sf::Sprite &sprite,
@@ -284,7 +340,10 @@ class Player: protected Movable, protected Hitboxable{    // todo Inherit from s
       this->sprite_.setPosition(screen_width*0.5, screen_height*0.7);
       //this->sprite_.setColor(sf::Color::Red);
 
-      this->SetHitbox(this->sprite_, 0, 0, 1, 1);
+      //this->SetHitbox(this->sprite_, 0, 0, 1, 1);
+      this->SetHitboxes(this->sprite_, .4, 0, .2, 1);
+      this->SetHitboxes(this->sprite_, .30, .35, .40, .1);
+      this->SetHitboxes(this->sprite_, 0, .48, 1, .5);
     }
 
     void Update(sf::RenderWindow &window, int elapsed, PublicAccessMagazine *covenant_magazine){
@@ -310,23 +369,37 @@ class Player: protected Movable, protected Hitboxable{    // todo Inherit from s
       this->bullet_magazine_.Update(window, elapsed); 
       for(sf::FloatRect laser_hitbox : (*covenant_magazine).GetProjectilesHitBoxes()){
         if(this->GetHitBox().intersects(laser_hitbox)){
-          std::cout << "PWND\n";
+        //if(this->CheckCollision(laser_hitbox)){
+          std::cout << "PWND dead\n";
         }
         
       }
 
       /*
-       */
         sf::RectangleShape rectangle;
         rectangle.setPosition(this->GetHitBox().left, this->GetHitBox().top);
         rectangle.setSize(sf::Vector2f(this->GetHitBox().width, this->GetHitBox().height));
         rectangle.setFillColor(sf::Color::Blue);
         window.draw(rectangle);
+       */
+      for(sf::FloatRect hitbox : *(this->GetAll(this->sprite_))){
+        //sf::FloatRect hitbox = this->GetAll(this->sprite_);
+        std::cout << hitbox.left << "\n";
+        sf::RectangleShape rectangle;
+        rectangle.setPosition(hitbox.left, hitbox.top);
+        rectangle.setSize(sf::Vector2f(hitbox.width, hitbox.height));
+        rectangle.setFillColor(sf::Color::Blue);
+        window.draw(rectangle);
+      }
 
       window.draw(this->sprite_);
     }
     sf::FloatRect GetHitBox(){
-      return this->sprite_.getTransform().transformRect(this->hitbox_);
+      return this->GetHitBoxes(this->sprite_);
+      //return this->sprite_.getTransform().transformRect(this->hitbox_);
+    }
+    bool CheckCollision(sf::FloatRect &enemy_hitbox){
+      return Hitboxable::CheckCollision(this->sprite_, enemy_hitbox);
     }
 
     void ClearProjectiles(){
@@ -567,7 +640,7 @@ int main(){
   }
 
   Player player(textures->GetPlayer(), screen_width, screen_height, textures->GetRocket());
-  AlienCovenant covenant = AlienCovenant(28, textures->GetAlien(), screen_width, screen_height, textures->GetLaser());
+  AlienCovenant covenant = AlienCovenant(1, textures->GetAlien(), screen_width, screen_height, textures->GetLaser());
   //////
   sf::Clock clock;
   while(window.isOpen()){
