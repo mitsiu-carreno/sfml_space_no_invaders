@@ -7,6 +7,7 @@
 #include <time.h>       // time
 // todo vector reserve everywhere
 // todo catch references on all hitbox related params
+// todo keypress on class?
 
 float GetScale(float initial_measure, float target_measure){
   return target_measure/initial_measure;
@@ -320,7 +321,7 @@ class Player: protected Movable, protected Hitboxable{    // todo Inherit from s
       this->SetHitbox(this->sprite_, 0, .48, 1, .5);
     }
 
-    void Update(sf::RenderWindow &window, int elapsed, PublicAccessMagazine *covenant_magazine){
+    void Update(sf::RenderWindow &window, int elapsed, bool &playing, PublicAccessMagazine *covenant_magazine){
       // Lock minimum value to 0
       this->remaining_fire_cooldown = (this->remaining_fire_cooldown < 0)? 0 : this->remaining_fire_cooldown - elapsed; 
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::Left)){
@@ -344,6 +345,7 @@ class Player: protected Movable, protected Hitboxable{    // todo Inherit from s
       for(const sf::FloatRect &laser_hitbox : (*covenant_magazine).GetProjectilesHitBoxes()){
         if(this->CheckCollision(laser_hitbox)){
           std::cout << "PWND dead\n";
+          playing = false;
         }
         
       }
@@ -530,7 +532,7 @@ class AlienCovenant: protected Movable{
     }
     */
 
-    void Update(sf::RenderWindow &window, int elapsed, PublicAccessMagazine *player_magazine){
+    void Update(sf::RenderWindow &window, int elapsed, bool &playing, PublicAccessMagazine *player_magazine){
       //std::cout << "cap" << this->covenant_.capacity() << " size:" << this->covenant_.size() << "\n";
       elapsed_stall += elapsed;
       if(elapsed_stall > stall_duration){
@@ -572,6 +574,9 @@ class AlienCovenant: protected Movable{
         soldier.Draw(window);
       }
       this->laser_magazine_.Update(window, elapsed);
+      if(this->covenant_.size() == 0){
+        playing = false;
+      }
     }
     void ClearAliens(){
       auto end = std::remove_if(covenant_.begin(), covenant_.end(), 
@@ -614,8 +619,24 @@ int main(){
     return EXIT_FAILURE;
   }
 
-  Player player(textures->GetPlayer(), screen_width, screen_height, textures->GetRocket());
-  AlienCovenant covenant = AlienCovenant(1, textures->GetAlien(), screen_width, screen_height, textures->GetLaser());
+  sf::Font font;
+  if(!font.loadFromFile("resources/KOMIKAP_.ttf")){
+    std::cout << "Unable to load font" << "\n";
+    return EXIT_FAILURE;
+  }
+  bool playing = true;
+
+  sf::Text game_status;
+  game_status.setFillColor(sf::Color::White);
+  game_status.setOrigin(game_status.getLocalBounds().width/2, game_status.getLocalBounds().height/2);
+  game_status.setPosition(screen_width/2, screen_height/2);
+  game_status.setCharacterSize(50);
+  game_status.setFont(font);
+
+  int total_aliens_demo = 1;
+
+  Player *player = new Player(textures->GetPlayer(), screen_width, screen_height, textures->GetRocket());
+  AlienCovenant *covenant = new AlienCovenant(total_aliens_demo, textures->GetAlien(), screen_width, screen_height, textures->GetLaser());
   //////
   sf::Clock clock;
   while(window.isOpen()){
@@ -626,6 +647,21 @@ int main(){
         textures = nullptr;
         window.close();
       }
+      if(sf::Keyboard::isKeyPressed(sf::Keyboard::Enter) && !playing){
+        delete player;
+        delete covenant;
+        playing = true;
+        ++total_aliens_demo;
+        covenant = new AlienCovenant(total_aliens_demo, textures->GetAlien(), screen_width, screen_height, textures->GetLaser());
+        player = new Player(textures->GetPlayer(), screen_width, screen_height, textures->GetRocket());
+        clock.restart();
+      }
+    }
+
+    if(!playing){
+      window.draw(game_status);
+      window.display();
+      continue;
     }
 
     sf::Time elapsed = clock.getElapsedTime();
@@ -633,16 +669,25 @@ int main(){
       clock.restart();
       window.clear(sf::Color(30,30,30));
    
-      player.Update(window, elapsed.asMilliseconds(), covenant.GetCovenantMagazine()); 
-      covenant.Update(window, elapsed.asMilliseconds(), player.GetPlayerMagazine());
+      covenant->Update(window, elapsed.asMilliseconds(), playing, player->GetPlayerMagazine());
+      if(!playing){
+        game_status.setString("WINNER!");
+        continue;
+      }
+
+      player->Update(window, elapsed.asMilliseconds(), playing, covenant->GetCovenantMagazine()); 
+      if(!playing){
+        game_status.setString("YOU LOSER");
+        continue;
+      }
 
       window.display();
     }else{
       // todo check if performant and good practice
       // Do performance tasks
-      player.ClearProjectiles();
-      covenant.ClearAliens();
-      covenant.ClearProjectiles();
+      player->ClearProjectiles();
+      covenant->ClearAliens();
+      covenant->ClearProjectiles();
     }
   }
   
