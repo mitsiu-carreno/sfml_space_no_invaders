@@ -532,7 +532,7 @@ class AlienCovenant: protected Movable{
     }
     */
 
-    void Update(sf::RenderWindow &window, int elapsed, bool &playing, PublicAccessMagazine *player_magazine){
+    void Update(sf::RenderWindow &window, int elapsed, bool &playing, bool &win, PublicAccessMagazine *player_magazine){
       //std::cout << "cap" << this->covenant_.capacity() << " size:" << this->covenant_.size() << "\n";
       elapsed_stall += elapsed;
       if(elapsed_stall > stall_duration){
@@ -552,6 +552,9 @@ class AlienCovenant: protected Movable{
         // movement here check to avoid double covenant range-base loop
         if(elapsed_movement > 0 && elapsed_movement <= movement_duration){
           soldier.Move(AlienCovenant::GetCurrentDirection(), elapsed);
+          if(soldier.GetPosition().y > window.getSize().y){
+            playing = false;
+          }
         }
         unsigned int i = 0;
         for(const sf::FloatRect &bullet_hitbox : (*player_magazine).GetProjectilesHitBoxes()){
@@ -576,6 +579,7 @@ class AlienCovenant: protected Movable{
       this->laser_magazine_.Update(window, elapsed);
       if(this->covenant_.size() == 0){
         playing = false;
+        win = true;
       }
     }
     void ClearAliens(){
@@ -625,6 +629,7 @@ int main(){
     return EXIT_FAILURE;
   }
   bool playing = true;
+  bool win = false;
 
   sf::Text game_status;
   game_status.setFillColor(sf::Color::White);
@@ -633,7 +638,7 @@ int main(){
   game_status.setCharacterSize(50);
   game_status.setFont(font);
 
-  int total_aliens_demo = 1;
+  int total_aliens_demo = 5;
 
   Player *player = new Player(textures->GetPlayer(), screen_width, screen_height, textures->GetRocket());
   AlienCovenant *covenant = new AlienCovenant(total_aliens_demo, textures->GetAlien(), screen_width, screen_height, textures->GetLaser());
@@ -648,10 +653,11 @@ int main(){
         window.close();
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::Enter) && !playing){
+
         delete player;
         delete covenant;
         playing = true;
-        ++total_aliens_demo;
+        win = false;
         covenant = new AlienCovenant(total_aliens_demo, textures->GetAlien(), screen_width, screen_height, textures->GetLaser());
         player = new Player(textures->GetPlayer(), screen_width, screen_height, textures->GetRocket());
         clock.restart();
@@ -669,15 +675,16 @@ int main(){
       clock.restart();
       window.clear(sf::Color(30,30,30));
    
-      covenant->Update(window, elapsed.asMilliseconds(), playing, player->GetPlayerMagazine());
-      if(!playing){
-        game_status.setString("WINNER!");
-        continue;
-      }
+      covenant->Update(window, elapsed.asMilliseconds(), playing, win, player->GetPlayerMagazine());
 
       player->Update(window, elapsed.asMilliseconds(), playing, covenant->GetCovenantMagazine()); 
       if(!playing){
-        game_status.setString("YOU LOSER");
+        if(win){
+          game_status.setString("WINNER!\nEnter to continue");
+          ++total_aliens_demo;
+        }else{
+          game_status.setString("YOU LOSER\nEnter to retry");
+        }
         continue;
       }
 
