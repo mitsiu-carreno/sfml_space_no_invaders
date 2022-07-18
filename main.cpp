@@ -5,9 +5,13 @@
 #include <vector>
 #include <stdlib.h>     // srand rand
 #include <time.h>       // time
-// todo vector reserve everywhere
-// todo catch references on all hitbox related params
+#include <math.h>       // log
+// todo use window.getSize() ??
 // todo keypress on class?
+// covenant movement on function ptr?
+// covenant formation on function ptr?
+
+
 
 float GetScale(float initial_measure, float target_measure){
   return target_measure/initial_measure;
@@ -391,7 +395,7 @@ class Alien: protected Movable, protected Hitboxable{
     sf::Sprite sprite_;
     //const int alien_width_ = 100;        // Pixels
     static constexpr float speed_ = 0.3129;           // Pixels / millisecond
-    int soldier_num;
+    char soldier_num_;
     static constexpr float hitbox_x_margin_percentage_ = 0.25;
     static constexpr float hitbox_y_margin_percentage_ = 0.35;
     bool active_ = true;
@@ -400,26 +404,19 @@ class Alien: protected Movable, protected Hitboxable{
     static constexpr int max_fire_cooldown_ = 12000;
   public:
     static constexpr int alien_width_ = 100;
-    Alien(sf::Texture *alien_texture, int soldier_num, int formation_col, int formation_row, int screen_margin, int row_margin, int col_margin){
+    Alien(sf::Texture *alien_texture, char soldier_num, float pos_x, float pos_y){
+      this->soldier_num_ = soldier_num;
       this->sprite_.setTexture(*alien_texture);
       this->sprite_.setOrigin(this->sprite_.getLocalBounds().width/2, this->sprite_.getLocalBounds().height/2);
       float scale = GetScale(this->sprite_.getGlobalBounds().width, this->alien_width_);
       this->sprite_.setScale(scale, scale);
-     
-      // Set alien at initial position (checking screen margin) 
-      this->sprite_.setPosition(this->sprite_.getGlobalBounds().width + screen_margin, this->sprite_.getGlobalBounds().height);
-      // Move to relative position based on row/col margins and formation position
-      this->sprite_.move(
-          (
-            this->sprite_.getGlobalBounds().width
-            + row_margin
-            + screen_margin
-          )  * formation_col,
-          (
-            this->sprite_.getGlobalBounds().height
-            + col_margin
-          )  * formation_row
-      );
+   
+      // Pos received are top-left, must adecuate to actual origin (center-center)
+      this->sprite_.setPosition(
+        pos_x + this->sprite_.getGlobalBounds().width/2, 
+        pos_y + this->sprite_.getGlobalBounds().height/2
+      ); 
+
       this->sprite_.setColor(sf::Color::Red);
       this->fire_cooldown_ = GetPseudoRandom(this->min_fire_cooldown_, this->max_fire_cooldown_);
 
@@ -467,6 +464,30 @@ class Alien: protected Movable, protected Hitboxable{
     }
 };
 
+void StandardFormation(char soldier_number, const unsigned int &screen_width, float &pos_x, float &pos_y){
+  constexpr int screen_margin = 10;
+  constexpr int row_margin = 15;
+  constexpr int col_margin = 15;
+  const int aliens_per_row = screen_width/(Alien::alien_width_ + row_margin + (2 * screen_margin));
+
+  int formation_col = soldier_number%aliens_per_row;
+  int formation_row = soldier_number/aliens_per_row;
+  pos_x = screen_margin + ((Alien::alien_width_ + row_margin) * formation_col);
+  pos_y = screen_margin + ((Alien::alien_width_ + col_margin) * formation_row);
+}
+
+void LogFormation(char soldier_number, const unsigned int &screen_width, float &pos_x, float &pos_y){
+  //constexpr int screen_margin = 10;
+  //constexpr int row_margin = 15;
+  constexpr int margin = 50;
+  //soldier_number *=margin;
+  int x = soldier_number * margin;
+  pos_x = x;
+  pos_y = (2 * log (2*x) )-3; 
+  std::cout << "x: " << pos_x << " y: " << pos_y << "\n";
+}
+
+
 class AlienCovenant: protected Movable{
   private:
     std::vector<Alien> covenant_;
@@ -476,9 +497,6 @@ class AlienCovenant: protected Movable{
     static constexpr int movement_duration = 200;        // Milliseconds
     float elapsed_stall = 0;
     float elapsed_movement = 0;
-    static constexpr int row_margin_ = 15;  // pixels
-    static constexpr int col_margin_ = 15;
-    static constexpr int screen_margin_ = 10;
     static constexpr int max_lasers_per_frame_ = 20;
     int aliens_per_row_;
     ProjectileMagazine laser_magazine_;
@@ -515,15 +533,18 @@ class AlienCovenant: protected Movable{
 
       this->covenant_.reserve(num_aliens);
 
+      //void (*GetFormationPtr)(const char, const unsigned int&,  float&, float&) = &StandardFormation;
+      void (*GetFormationPtr)(char, const unsigned int&,  float&, float&) = &LogFormation;
       // Create aliens
-      this->aliens_per_row_ = screen_width/(Alien::alien_width_ + this->row_margin_ + (2 * this->screen_margin_));
-      for(int i = 0; i<num_aliens; ++i){
-        int formation_col = i%this->aliens_per_row_;
-        int formation_row = i/this->aliens_per_row_;
-        Alien *new_alien = new Alien(alien_texture, i, formation_col, formation_row, this->screen_margin_, this->row_margin_, this->col_margin_);
+      for(char i=0; i < num_aliens; ++i){
+        float pos_x;
+        float pos_y;
+        (*GetFormationPtr)(i, screen_width, pos_x, pos_y);
+        Alien *new_alien = new Alien(alien_texture, i, pos_x, pos_y);
         this->covenant_.push_back(*new_alien);
         delete new_alien;
       }
+
     }
     /*
     ~AlienCovenant(){
@@ -647,7 +668,7 @@ int main(){
   game_status.setCharacterSize(50);
   game_status.setFont(font);
 
-  int total_aliens_demo = 5;
+  int total_aliens_demo = 100;
 
   Player *player = new Player(textures->GetPlayer(), screen_width, screen_height, textures->GetRocket());
   AlienCovenant *covenant = new AlienCovenant(total_aliens_demo, textures->GetAlien(), screen_width, screen_height, textures->GetLaser());
@@ -657,6 +678,7 @@ int main(){
     sf::Event event;
     while(window.pollEvent(event)){
       if(event.type == sf::Event::Closed){
+        std::cout << "Start Closing\n";
         delete textures;
         delete covenant;
         delete player;
@@ -664,6 +686,7 @@ int main(){
         covenant = nullptr;
         player = nullptr;
         window.close();
+        std::cout << "End Closing\n";
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::Enter) && !playing){
 
