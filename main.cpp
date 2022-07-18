@@ -687,6 +687,7 @@ int main(){
         player = nullptr;
         window.close();
         std::cout << "End Closing\n";
+        return 0;
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::Enter) && !playing){
 
