@@ -219,7 +219,7 @@ class ProjectileMagazine{
     void Update(sf::RenderWindow &window, int elapsed){
       for(Projectile &projectile : this->projectiles_){
         projectile.Update(window, elapsed, this->friendly_);
-        /* Debug */
+        /* Debug 
         for(const sf::FloatRect &hitbox : *projectile.GetHitboxes()){
           
           sf::RectangleShape rectangle;
@@ -231,7 +231,7 @@ class ProjectileMagazine{
 
           window.draw(rectangle);
         }
-        /**/
+        */
       }
     }
     void AddProjectile(float pos_x, float pos_y){
@@ -245,7 +245,7 @@ class ProjectileMagazine{
     }
     void ClearProjectiles(){  
       // DEBUG
-      std::cout << "cap" << this->projectiles_.capacity() << " size:" << this->projectiles_.size() << "\n";
+      //std::cout << "cap" << this->projectiles_.capacity() << " size:" << this->projectiles_.size() << "\n";
       /*  DEBUG
           if(this->projectiles_.capacity() > this->max_size){
             this->max_size = this->projectiles_.capacity();
@@ -316,9 +316,9 @@ class Player: protected Movable, protected Hitboxable{    // todo Inherit from s
       this->sprite_.setScale(scale, scale); 
       this->sprite_.setPosition(screen_width*0.5, screen_height*0.7);
 
-      this->SetHitbox(this->sprite_, .4, 0, .2, 1);
-      this->SetHitbox(this->sprite_, .30, .35, .40, .1);
-      this->SetHitbox(this->sprite_, 0, .48, 1, .5);
+      this->SetHitbox(this->sprite_, .4, .1, .2, .9);
+      this->SetHitbox(this->sprite_, .185, .50, .63, .4);
+      this->SetHitbox(this->sprite_, 0, .52, 1, .27);
     }
 
     void Update(sf::RenderWindow &window, int elapsed, bool &playing, PublicAccessMagazine *covenant_magazine){
@@ -350,7 +350,7 @@ class Player: protected Movable, protected Hitboxable{    // todo Inherit from s
         
       }
 
-      /**/
+      /*
       for(const sf::FloatRect &hitbox : *(this->GetHitboxes(this->sprite_))){
         sf::RectangleShape rectangle;
         rectangle.setPosition(hitbox.left, hitbox.top);
@@ -358,6 +358,7 @@ class Player: protected Movable, protected Hitboxable{    // todo Inherit from s
         rectangle.setFillColor(sf::Color::Blue);
         window.draw(rectangle);
       }
+      */
 
       window.draw(this->sprite_);
     }
@@ -377,6 +378,10 @@ class Player: protected Movable, protected Hitboxable{    // todo Inherit from s
     
     PublicAccessMagazine* GetPlayerMagazine(){
       return this->bullet_magazine_.GetMagazine();
+    }
+
+    std::vector<sf::FloatRect>* GetHitboxes(){
+      return Hitboxable::GetHitboxes(this->sprite_);
     }
     
 };
@@ -434,9 +439,6 @@ class Alien: protected Movable, protected Hitboxable{
       window.draw(this->sprite_);
     }
 
-    std::vector<sf::FloatRect>* GetHitBoxes(){
-      return Hitboxable::GetHitboxes(this->sprite_);
-    }
 
     bool GetActiveStatus() const {
       return this->active_;
@@ -532,7 +534,7 @@ class AlienCovenant: protected Movable{
     }
     */
 
-    void Update(sf::RenderWindow &window, int elapsed, bool &playing, bool &win, PublicAccessMagazine *player_magazine){
+    void Update(sf::RenderWindow &window, int elapsed, bool &playing, bool &win, PublicAccessMagazine *player_magazine, std::vector<sf::FloatRect>* player_hitbox){
       //std::cout << "cap" << this->covenant_.capacity() << " size:" << this->covenant_.size() << "\n";
       elapsed_stall += elapsed;
       if(elapsed_stall > stall_duration){
@@ -556,6 +558,7 @@ class AlienCovenant: protected Movable{
             playing = false;
           }
         }
+        // Check collision with bullets or player
         unsigned int i = 0;
         for(const sf::FloatRect &bullet_hitbox : (*player_magazine).GetProjectilesHitBoxes()){
           if(soldier.CheckCollision(bullet_hitbox)){
@@ -565,7 +568,13 @@ class AlienCovenant: protected Movable{
           }
           ++i;
         }
-        /* Debug*/
+        for(const sf::FloatRect &player_hitbox : (*player_hitbox)){
+          if(soldier.CheckCollision(player_hitbox)){
+            std::cout << "PWND Reached\n";
+            playing = false;
+          }
+        }
+        /* Debug
         for(const sf::FloatRect &hitbox : *soldier.GetHitboxes()){
           sf::RectangleShape rectangle;
           rectangle.setPosition(hitbox.left, hitbox.top);
@@ -573,7 +582,7 @@ class AlienCovenant: protected Movable{
           rectangle.setFillColor(sf::Color::Red);
           window.draw(rectangle);
         }
-        /**/
+        */
         soldier.Draw(window);
       }
       this->laser_magazine_.Update(window, elapsed);
@@ -649,7 +658,11 @@ int main(){
     while(window.pollEvent(event)){
       if(event.type == sf::Event::Closed){
         delete textures;
+        delete covenant;
+        delete player;
         textures = nullptr;
+        covenant = nullptr;
+        player = nullptr;
         window.close();
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::Enter) && !playing){
@@ -675,7 +688,7 @@ int main(){
       clock.restart();
       window.clear(sf::Color(30,30,30));
    
-      covenant->Update(window, elapsed.asMilliseconds(), playing, win, player->GetPlayerMagazine());
+      covenant->Update(window, elapsed.asMilliseconds(), playing, win, player->GetPlayerMagazine(), player->GetHitboxes());
 
       player->Update(window, elapsed.asMilliseconds(), playing, covenant->GetCovenantMagazine()); 
       if(!playing){
