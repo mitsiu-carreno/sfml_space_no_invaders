@@ -334,7 +334,11 @@ class Player: protected Movable, protected Hitboxable{    // todo Inherit from s
         }
       }
       if(sf::Keyboard::isKeyPressed(sf::Keyboard::Right)){
-        if(this->sprite_.getGlobalBounds().left + this->sprite_.getGlobalBounds().width < window.getSize().x - constants::kScreenMargins){
+        sf::Vector2f point = {
+          this->sprite_.getGlobalBounds().left + this->sprite_.getGlobalBounds().width,
+          this->sprite_.getGlobalBounds().top + this->sprite_.getGlobalBounds().height
+        };
+        if(window.mapCoordsToPixel(point).x < window.getSize().x - constants::kScreenMargins){
           Movable::Move(this->sprite_, Movable::Direction::kRight, elapsed * this->speed_);
         }
       }
@@ -464,7 +468,7 @@ class Alien: protected Movable, protected Hitboxable{
     }
 };
 
-void StandardFormation(char soldier_number, const unsigned int &screen_width, float &pos_x, float &pos_y){
+void StandardFormation(const char soldier_number, const char total_soldiers, const unsigned int &screen_width, float &pos_x, float &pos_y){
   constexpr int screen_margin = 10;
   constexpr int row_margin = 15;
   constexpr int col_margin = 15;
@@ -476,17 +480,23 @@ void StandardFormation(char soldier_number, const unsigned int &screen_width, fl
   pos_y = screen_margin + ((Alien::alien_width_ + col_margin) * formation_row);
 }
 
-void LogFormation(char soldier_number, const unsigned int &screen_width, float &pos_x, float &pos_y){
-  //constexpr int screen_margin = 10;
+void LogFormation(const char soldier_number, const char total_soldiers, const unsigned int &screen_width, float &pos_x, float &pos_y){
+  constexpr int screen_margin = 10;
   //constexpr int row_margin = 15;
-  constexpr int margin = 50;
-  //soldier_number *=margin;
-  int x = soldier_number * margin;
+  const int margin = (screen_width - screen_margin * 2)/total_soldiers;
+  //first soldier_num is 0 log = inf
+  int x = (1 + soldier_number) * margin;
   pos_x = x;
-  pos_y = (2 * log (2*x) )-3; 
+  pos_y = (2 * log10 (2*x) ); 
+  //pos_y = log10(x);
   std::cout << "x: " << pos_x << " y: " << pos_y << "\n";
 }
 
+/*
+void CresendoWaveFormation(){
+  sin(x) * log(x)
+}
+*/
 
 class AlienCovenant: protected Movable{
   private:
@@ -533,13 +543,13 @@ class AlienCovenant: protected Movable{
 
       this->covenant_.reserve(num_aliens);
 
-      //void (*GetFormationPtr)(const char, const unsigned int&,  float&, float&) = &StandardFormation;
-      void (*GetFormationPtr)(char, const unsigned int&,  float&, float&) = &LogFormation;
+      //void (*GetFormationPtr)(const char, const char, const unsigned int&,  float&, float&) = &StandardFormation;
+      void (*GetFormationPtr)(const char, const char, const unsigned int&,  float&, float&) = &LogFormation;
       // Create aliens
       for(char i=0; i < num_aliens; ++i){
         float pos_x;
         float pos_y;
-        (*GetFormationPtr)(i, screen_width, pos_x, pos_y);
+        (*GetFormationPtr)(i, num_aliens, screen_width, pos_x, pos_y);
         Alien *new_alien = new Alien(alien_texture, i, pos_x, pos_y);
         this->covenant_.push_back(*new_alien);
         delete new_alien;
@@ -668,7 +678,7 @@ int main(){
   game_status.setCharacterSize(50);
   game_status.setFont(font);
 
-  int total_aliens_demo = 100;
+  int total_aliens_demo = 20;
 
   Player *player = new Player(textures->GetPlayer(), screen_width, screen_height, textures->GetRocket());
   AlienCovenant *covenant = new AlienCovenant(total_aliens_demo, textures->GetAlien(), screen_width, screen_height, textures->GetLaser());
