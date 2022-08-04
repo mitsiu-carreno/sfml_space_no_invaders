@@ -12,7 +12,7 @@
 // covenant formation on function ptr?
 
 
-
+// Function to get scale in order to modify initial_measure to target_measure
 float GetScale(float initial_measure, float target_measure){
   return target_measure/initial_measure;
 }
@@ -25,9 +25,9 @@ int GetPseudoRandom(int min, int max){
 
 namespace constants{
   constexpr int kFrameRate = 60;  // Frames per second
-  constexpr int kFrameDuration = 1000/kFrameRate;
+  constexpr int kFrameDuration = 1000/kFrameRate; // Miliseconds that will elapse for one frame
   constexpr int kScreenMargins = 10;
-  constexpr int kMaxHitboxPerSprite = 3;
+  constexpr int kMaxHitboxPerSprite = 3;  // Maximum number of hitboxes allowed by entity
 }
 
 class Texture{
@@ -52,6 +52,8 @@ class Texture{
         throw "Unable to load laser texture";
       }
     }
+
+    // All this functions return addresses where the texture is stored
     sf::Texture* GetPlayer(){
       return &this->player_;
     }
@@ -68,6 +70,7 @@ class Texture{
 
 class Movable{
   protected:
+    // List all possible movement directions
     enum class Direction{
       kUp,
       kRight,
@@ -96,12 +99,15 @@ class Movable{
 
 class Hitboxable{
   protected:
+    // Store original hitbox relative to original sprite
     std::vector<sf::FloatRect> hitboxes_;
+    // Store transformed hitbox relative to transformed (scaled, moved, etc) sprite
     std::vector<sf::FloatRect> hitboxes_transformed_;
     Hitboxable(){
       this->hitboxes_.reserve(constants::kMaxHitboxPerSprite);
       this->hitboxes_transformed_.reserve(constants::kMaxHitboxPerSprite);
     }
+    // Set one hitbox at the time
     void SetHitbox(
       const sf::Sprite &sprite,
       float percentage_offset_x,
@@ -124,6 +130,7 @@ class Hitboxable{
 
     std::vector<sf::FloatRect>* GetHitboxes(const sf::Sprite &sprite){
       for(int i=0; i < this->hitboxes_.size(); ++i){
+        // Transform original hitbox to match current sprite (move, scale, etc)
         this->hitboxes_transformed_.at(i) = sprite.getTransform().transformRect(this->hitboxes_.at(i));
       }
       return &this->hitboxes_transformed_;
@@ -148,8 +155,8 @@ class Projectile: protected Movable, protected Hitboxable{
     sf::Sprite sprite_;
     bool active_ = true;
   public:
-    static constexpr float speed_ = 0.6;
-    static constexpr int projectile_height_ = 40; // pixels /milliseconds
+    static constexpr float speed_ = 0.6;    // pixels / miliseconds
+    static constexpr int projectile_height_ = 40; // pixels 
     Projectile(sf::Texture& texture, float pos_x, float pos_y){
       this->sprite_.setTexture(texture);
       this->sprite_.setOrigin(this->sprite_.getLocalBounds().width/2, this->sprite_.getLocalBounds().height/2);
@@ -180,6 +187,9 @@ class Projectile: protected Movable, protected Hitboxable{
     }
 };
 
+// I could pass all the bullets /lazers but I don't want to expose all the public methods of all bullets
+// I created a helper class that handles that, I only expose GetProjectilesHitBoxes & DeleteProjectile because that's the only 
+// methods I want to expose in certain contexts.
 class PublicAccessMagazine{  
   private: 
     std::vector<Projectile>* projectiles_ptr_;
@@ -203,10 +213,12 @@ class PublicAccessMagazine{
     }
 };
 
+// This is the full class and has some other methods I want to be available in the rest of the contexts
 class ProjectileMagazine{
   private:
     sf::Texture *projectile_texture_;
     std::vector<Projectile> projectiles_;
+    // PublicAccessMagazine ends up being a attribute in ProjectileMagazine
     PublicAccessMagazine public_magazine_;
     bool friendly_;
     unsigned int screen_height;
@@ -244,6 +256,7 @@ class ProjectileMagazine{
           pos_x,
           pos_y
       );
+      // Notice the push_back of the values instead of the pointer, avoid dangling pointer
       this->projectiles_.push_back(*new_projectile);
       delete new_projectile;
     }
@@ -256,7 +269,7 @@ class ProjectileMagazine{
           }
           std::cout << this->max_size << "\n";
           */
-      /*  LEGACY
+      /*  LEGACY delete one at the time (performance costly)
       unsigned i = 0;
       unsigned deleted = -1;
       for(Projectile &projectile : this->projectiles_){
@@ -271,6 +284,8 @@ class ProjectileMagazine{
         this->projectiles_.erase(this->projectiles_.begin()+deleted);
       }
       */
+
+      // Implement LAMBDA function to move the projectiles that will be deleted to the last positions and returns a pointer to the last non deletable element
       auto end = std::remove_if(this->projectiles_.begin(), this->projectiles_.end(),
           [this](const Projectile &projectile){
             return (
@@ -285,6 +300,7 @@ class ProjectileMagazine{
     unsigned int GetMagazineSize(){
       return this->projectiles_.size();
     }
+    // Notice returning a pointer (memory management)
     PublicAccessMagazine* GetMagazine(){
       return &(this->public_magazine_);
     }
@@ -352,7 +368,7 @@ class Player: protected Movable, protected Hitboxable{    // todo Inherit from s
       this->bullet_magazine_.Update(window, elapsed); 
       for(const sf::FloatRect &laser_hitbox : (*covenant_magazine).GetProjectilesHitBoxes()){
         if(this->CheckCollision(laser_hitbox)){
-          std::cout << "PWND dead\n";
+          //std::cout << "PWND dead\n";
           playing = false;
         }
         
@@ -468,8 +484,10 @@ class Alien: protected Movable, protected Hitboxable{
     }
 };
 
+// StandardFormation, LogFormation and WaveFormation are extra features (describe the way all aliens should align at level start)
 void StandardFormation(const char soldier_number, const char total_soldiers, const unsigned int &screen_width, float &pos_x, float &pos_y){
   constexpr int screen_margin = 10;
+  constexpr int screen_top_margin = 150;
   constexpr int row_margin = 15;
   constexpr int col_margin = 15;
   const int aliens_per_row = screen_width/(Alien::alien_width_ + row_margin + (2 * screen_margin));
@@ -477,7 +495,7 @@ void StandardFormation(const char soldier_number, const char total_soldiers, con
   int formation_col = soldier_number%aliens_per_row;
   int formation_row = soldier_number/aliens_per_row;
   pos_x = screen_margin + ((Alien::alien_width_ + row_margin) * formation_col);
-  pos_y = screen_margin + ((Alien::alien_width_ + col_margin) * formation_row);
+  pos_y = screen_top_margin + ((Alien::alien_width_ + col_margin) * formation_row);
 }
 
 void LogFormation(const char soldier_number, const char total_soldiers, const unsigned int &screen_width, float &pos_x, float &pos_y){
@@ -496,7 +514,7 @@ void LogFormation(const char soldier_number, const char total_soldiers, const un
 void WaveFormation(char soldier_number, const char total_soldiers, const unsigned int &screen_width, float &pos_x, float &pos_y){
   //std::cout << "og soldier_number " << (int)(soldier_number) << "\n";
   //constexpr int top_margin = 20;
-  constexpr int screen_margin = 80;
+  constexpr int screen_margin = 60;
   constexpr int row_margin = 200;
   const int aliens_per_row = screen_width/(Alien::alien_width_/8 + screen_margin);
   //const int aliens_per_row = 3;
@@ -546,6 +564,7 @@ class AlienCovenant: protected Movable{
         this->max_lasers_per_frame_,
         screen_height
     ){
+      // Describe alien movement cycle
       this->movement_loop[0] = Movable::Direction::kRight;
       this->movement_loop[1] = Movable::Direction::kDown;
       this->movement_loop[2] = Movable::Direction::kLeft;
@@ -560,7 +579,8 @@ class AlienCovenant: protected Movable{
       this->covenant_.reserve(num_aliens);
 
       void (*GetFormationPtr)(const char, const char, const unsigned int&,  float&, float&) = &StandardFormation;
-      //void (*GetFormationPtr)(const char, const char, const unsigned int&,  float&, float&) = &WaveFormation;
+
+      // DEBUG void (*GetFormationPtr)(const char, const char, const unsigned int&,  float&, float&) = &WaveFormation;
       // todo not hardcoded
       if(num_aliens > 42){
         GetFormationPtr = &WaveFormation;
@@ -613,7 +633,7 @@ class AlienCovenant: protected Movable{
         unsigned int i = 0;
         for(const sf::FloatRect &bullet_hitbox : (*player_magazine).GetProjectilesHitBoxes()){
           if(soldier.CheckCollision(bullet_hitbox)){
-            std::cout << "PWND\n";
+            //std::cout << "PWND\n";
             soldier.Dead();
             (*player_magazine).DeleteProjectile(i);
           }
@@ -643,6 +663,7 @@ class AlienCovenant: protected Movable{
       }
     }
     void ClearAliens(){
+      // Implement LAMBDA function to move the aliens that will be deleted to the last positions and returns a pointer to the last non deletable element
       auto end = std::remove_if(covenant_.begin(), covenant_.end(), 
           [](const Alien &alien){return alien.GetActiveStatus() == false;}
           );  
@@ -698,7 +719,7 @@ int main(){
   game_status.setCharacterSize(50);
   game_status.setFont(font);
 
-  int total_aliens_demo = 55;
+  int total_aliens_demo = 28;
 
   Player *player = new Player(textures->GetPlayer(), screen_width, screen_height, textures->GetRocket());
   AlienCovenant *covenant = new AlienCovenant(total_aliens_demo, textures->GetAlien(), screen_width, screen_height, textures->GetLaser());

@@ -1,6 +1,9 @@
 #References
 https://stackoverflow.com/questions/51870548/c-how-to-erase-from-vector-while-iterating
 
+# Graph functions
+https://www.desmos.com/calculator
+
 #Compile for windows
 ## Reference
 https://stackoverflow.com/questions/23397536/how-to-compile-sfml-with-mingw
