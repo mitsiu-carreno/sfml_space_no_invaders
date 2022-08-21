@@ -8,6 +8,7 @@
 #include <math.h>       // log
 // todo use window.getSize() ??
 // todo keypress on class?
+// todo multiple files???
 // covenant movement on function ptr?
 // covenant formation on function ptr?
 
